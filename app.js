@@ -606,7 +606,7 @@ function displayEmergencyIncidents(incidentsToDisplay) {
     incidentCount.textContent = incidentsToDisplay.length;
     
     if (incidentsToDisplay.length === 0) {
-        const noIncidentsMsg = 'No Emergency VIC incidents at this time';
+        const noIncidentsMsg = 'No Emergency incidents at this time';
         incidentsList.innerHTML = `<div class="no-alerts">${noIncidentsMsg}</div>`;
         return;
     }
@@ -627,11 +627,15 @@ function displayEmergencyIncidents(incidentsToDisplay) {
             incidentNameHtml = `<div class="alert-incident-name">${incident.incidentName}</div>`;
         }
         
+        // Add source badge
+        const sourceLabel = incident.source === 'NSW' ? 'NSW' : 'VIC';
+        const sourceBadge = `<span class="source-badge source-${sourceLabel.toLowerCase()}">${sourceLabel}</span>`;
+        
         return `
             <div class="alert-item emergency-incident" data-alert-id="${index}" data-feed-type="emergency" data-warning-level="${warningLevel}" onclick="selectEmergencyIncident(${index})" style="border-left-color: ${warningStyle.color};">
                 <div class="alert-icon triangle-icon" style="color: ${warningStyle.color};">▲</div>
                 <div class="alert-content">
-                    <div class="alert-warning-badge">${warningStyle.label}</div>
+                    <div class="alert-warning-badge">${warningStyle.label} ${sourceBadge}</div>
                     <div class="alert-location" style="color: ${warningStyle.color};">${incident.location || 'Location Unknown'}</div>
                     ${incidentNameHtml}
                     <div class="alert-message">${incident.message}</div>
@@ -924,6 +928,7 @@ async function updateMapWithSeparateFeeds() {
                             ${incident.incidentName ? `<div class="popup-incident-name">${incident.incidentName}</div>` : ''}
                             <div class="popup-message">${incident.message}</div>
                             <div class="popup-time">${formatTime(incident.timestamp)}</div>
+                            <div class="popup-source">Source: ${incident.source === 'NSW' ? 'NSW RFS' : 'Emergency VIC'}</div>
                         `)
                 )
                 .addTo(map);
