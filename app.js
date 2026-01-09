@@ -299,7 +299,7 @@ function updateLocateButton() {
         locateBtn.classList.remove('btn-locate-disabled');
         locateBtn.title = 'Click to disable auto-zoom';
     } else {
-        locateIcon.textContent = '📍';
+        locateIcon.textContent = '📌';
         locateBtn.classList.add('btn-locate-disabled');
         locateBtn.title = 'Click to enable auto-zoom';
     }
