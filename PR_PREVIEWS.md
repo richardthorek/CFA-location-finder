@@ -29,9 +29,9 @@ When a pull request is closed or merged:
 
 ## Workflow Configuration
 
-The preview deployment feature is configured in two workflow files:
+The preview deployment feature is configured in the workflow file:
 
-### Primary Workflow: `.github/workflows/azure-static-web-apps.yml`
+### Workflow: `.github/workflows/azure-static-web-apps.yml`
 
 ```yaml
 on:
@@ -106,10 +106,9 @@ URL: https://zealous-pond-09cbfb91e-23.centralus.5.azurestaticapps.net
 
 ### Workflow Secrets
 
-The workflows use these secrets:
-- `AZURE_STATIC_WEB_APPS_API_TOKEN`: Main deployment token
-- `AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_POND_09CBFB91E`: Secondary deployment token
-- `GITHUB_TOKEN`: Automatically provided by GitHub Actions
+The workflow uses these secrets:
+- `AZURE_STATIC_WEB_APPS_API_TOKEN`: Azure deployment token for the static web app
+- `GITHUB_TOKEN`: Automatically provided by GitHub Actions for PR comments
 
 ## Troubleshooting
 
