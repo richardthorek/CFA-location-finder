@@ -657,12 +657,17 @@ function filterAndUpdateAlerts() {
     }
 }
 
-// Update map with filtered alerts (used by auto-zoom)
-async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidentsFiltered) {
-    // Clear existing markers and mapping
+// Clear all map markers
+function clearMapMarkers() {
     markers.forEach(marker => marker.remove());
     markers = [];
     alertToMarkerMap.clear();
+}
+
+// Update map with filtered alerts (used by auto-zoom)
+async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidentsFiltered) {
+    // Clear existing markers
+    clearMapMarkers();
     
     // Add CFA alert markers
     for (let i = 0; i < cfaAlertsFiltered.length; i++) {
@@ -1130,10 +1135,8 @@ async function displayRouteForAlert(alert) {
 
 // Update map with separate feeds
 async function updateMapWithSeparateFeeds() {
-    // Clear existing markers and mapping
-    markers.forEach(marker => marker.remove());
-    markers = [];
-    alertToMarkerMap.clear();
+    // Clear existing markers
+    clearMapMarkers();
     
     // Add CFA alert markers with pager icon
     for (let i = 0; i < cfaAlerts.length; i++) {
