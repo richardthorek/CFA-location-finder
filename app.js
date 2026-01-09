@@ -181,10 +181,8 @@ async function loadAlerts() {
             if (response.ok) {
                 const emergencyIncidentsData = await response.json();
                 // Process Emergency incidents - these have warning levels
-                emergencyIncidents = emergencyIncidentsData.map(incident => ({
-                    ...incident,
-                    source: 'Emergency'
-                }));
+                // Note: source property (VIC or NSW) is already set by the API
+                emergencyIncidents = emergencyIncidentsData;
                 
                 // Sort by timestamp (most recent first)
                 emergencyIncidents.sort((a, b) => {
