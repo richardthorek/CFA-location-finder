@@ -568,7 +568,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return distance;
 }
 
-// Filter alerts within 100km and calculate distances
+// Filter alerts to show 20 closest and calculate distances
 function filterAndUpdateAlerts() {
     if (!userLocation || (cfaAlerts.length === 0 && emergencyIncidents.length === 0)) {
         return;
@@ -600,14 +600,18 @@ function filterAndUpdateAlerts() {
         }
     });
     
-    // Filter alerts with coordinates and valid distances (keep feeds separate)
-    const cfaAlertsFiltered = cfaAlerts.filter(alert => alert.coordinates && alert.distance !== undefined)
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, 10); // Top 10 closest CFA alerts
+    // Combine all alerts with coordinates and distances, then sort by distance
+    const allAlertsWithDistance = [
+        ...cfaAlerts.filter(a => a.coordinates && a.distance !== undefined).map(a => ({ ...a, feedType: 'cfa' })),
+        ...emergencyIncidents.filter(i => i.coordinates && i.distance !== undefined).map(i => ({ ...i, feedType: 'emergency' }))
+    ].sort((a, b) => a.distance - b.distance);
     
-    const emergencyIncidentsFiltered = emergencyIncidents.filter(incident => incident.coordinates && incident.distance !== undefined)
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, 10); // Top 10 closest Emergency incidents
+    // Take the 20 closest alerts regardless of distance
+    const closest20 = allAlertsWithDistance.slice(0, 20);
+    
+    // Separate back into feed types
+    const cfaAlertsFiltered = closest20.filter(a => a.feedType === 'cfa');
+    const emergencyIncidentsFiltered = closest20.filter(a => a.feedType === 'emergency');
     
     // Update display with filtered feeds
     displayCFAAlerts(cfaAlertsFiltered);
@@ -617,19 +621,13 @@ function filterAndUpdateAlerts() {
     const bounds = new mapboxgl.LngLatBounds();
     bounds.extend([userLocation.lng, userLocation.lat]);
     
-    cfaAlertsFiltered.forEach(alert => {
+    closest20.forEach(alert => {
         if (alert.coordinates) {
             bounds.extend(alert.coordinates);
         }
     });
     
-    emergencyIncidentsFiltered.forEach(incident => {
-        if (incident.coordinates) {
-            bounds.extend(incident.coordinates);
-        }
-    });
-    
-    if (cfaAlertsFiltered.length > 0 || emergencyIncidentsFiltered.length > 0) {
+    if (closest20.length > 0) {
         map.fitBounds(bounds, { padding: 50, maxZoom: 12 });
     }
 }
@@ -941,8 +939,9 @@ async function updateMapWithSeparateFeeds() {
         }
         
         if (alert.coordinates) {
-            // Calculate opacity based on age
+            // Calculate opacity and color based on age
             const opacity = calculateAlertOpacity(alert.timestamp, 'advice');
+            const recencyColor = getAlertColorByRecency(alert.timestamp);
             
             // Create custom marker element with pager icon
             const markerEl = document.createElement('div');
@@ -953,21 +952,23 @@ async function updateMapWithSeparateFeeds() {
             markerEl.style.opacity = opacity;
             markerEl.style.transition = 'opacity 0.3s ease';
             
-            // Create marker icon (pager icon)
+            // Create marker icon (pager icon) with recency color
             const iconDiv = document.createElement('div');
             iconDiv.className = 'marker-icon';
             iconDiv.textContent = '📟';
             iconDiv.setAttribute('aria-hidden', 'true');
+            // Apply subtle color tint to icon via text-shadow
+            iconDiv.style.filter = `drop-shadow(0 0 3px ${recencyColor})`;
             
-            // Create marker info container
+            // Create marker info container with recency color
             const infoDiv = document.createElement('div');
             infoDiv.className = 'marker-info';
-            infoDiv.style.borderColor = '#2196F3'; // Blue for CFA
+            infoDiv.style.borderColor = recencyColor;
             
-            // Create location text
+            // Create location text with recency color
             const locationDiv = document.createElement('div');
             locationDiv.className = 'marker-location';
-            locationDiv.style.color = '#2196F3';
+            locationDiv.style.color = recencyColor;
             locationDiv.textContent = alert.location || 'Unknown';
             
             infoDiv.appendChild(locationDiv);
@@ -1022,8 +1023,13 @@ async function updateMapWithSeparateFeeds() {
             const warningLevel = incident.warningLevel || 'advice';
             const warningStyle = getWarningStyle(warningLevel);
             
-            // Calculate opacity based on age and warning level
+            // Calculate opacity and recency color based on age
             const opacity = calculateAlertOpacity(incident.timestamp, warningLevel);
+            const recencyColor = getAlertColorByRecency(incident.timestamp);
+            
+            // Blend warning color with recency color for emergency incidents
+            // For emergency warnings, prioritize warning color; for others, show recency more prominently
+            const displayColor = warningLevel === 'emergency' ? warningStyle.color : recencyColor;
             
             // Create custom marker element with triangle icon
             const markerEl = document.createElement('div');
@@ -1035,22 +1041,24 @@ async function updateMapWithSeparateFeeds() {
             markerEl.style.opacity = opacity;
             markerEl.style.transition = 'opacity 0.3s ease';
             
-            // Create marker icon (triangle icon with warning color)
+            // Create marker icon (triangle icon) - use display color
             const iconDiv = document.createElement('div');
             iconDiv.className = 'marker-icon triangle-marker';
             iconDiv.textContent = '▲';
-            iconDiv.style.color = warningStyle.color;
+            iconDiv.style.color = displayColor;
             iconDiv.setAttribute('aria-hidden', 'true');
+            // Add recency glow effect
+            iconDiv.style.filter = `drop-shadow(0 0 3px ${recencyColor})`;
             
             // Create marker info container
             const infoDiv = document.createElement('div');
             infoDiv.className = 'marker-info';
-            infoDiv.style.borderColor = warningStyle.color;
+            infoDiv.style.borderColor = displayColor;
             
             // Create location text
             const locationDiv = document.createElement('div');
             locationDiv.className = 'marker-location';
-            locationDiv.style.color = warningStyle.color;
+            locationDiv.style.color = displayColor;
             locationDiv.textContent = incident.location || 'Unknown';
             
             infoDiv.appendChild(locationDiv);
@@ -1196,6 +1204,49 @@ function calculateAlertOpacity(timestamp, warningLevel) {
     } else {
         // 3+ hours: minimum opacity
         return minOpacity;
+    }
+}
+
+/**
+ * Get color based on alert recency for visual distinction
+ * Newer alerts use brighter, warmer colors; older alerts use cooler, faded colors
+ * 
+ * Color bands by age:
+ * - 0-30 minutes: Bright red (#FF4444) - Very recent, immediate attention
+ * - 30-60 minutes: Bright orange (#FF6B35) - Recent, active situation
+ * - 1-2 hours: Yellow-orange (#FFB84D) - Moderately recent
+ * - 2-4 hours: Yellow (#FBE032) - Getting older
+ * - 4+ hours: Gray-blue (#95A5A6) - Old, background information
+ * 
+ * @param {string} timestamp - ISO timestamp
+ * @returns {string} Hex color code for the alert
+ */
+function getAlertColorByRecency(timestamp) {
+    const ageHours = getAlertAgeInHours(timestamp);
+    
+    // Age thresholds in hours
+    const AGE_VERY_RECENT = 0.5;  // 30 minutes
+    const AGE_RECENT = 1;          // 1 hour
+    const AGE_MODERATE = 2;        // 2 hours
+    const AGE_OLD = 4;             // 4 hours
+    
+    // Color palette - bright to faded
+    const COLOR_VERY_RECENT = '#FF4444';  // Bright red
+    const COLOR_RECENT = '#FF6B35';       // Bright orange
+    const COLOR_MODERATE = '#FFB84D';     // Yellow-orange
+    const COLOR_OLD = '#FBE032';          // Yellow
+    const COLOR_VERY_OLD = '#95A5A6';     // Gray
+    
+    if (ageHours < AGE_VERY_RECENT) {
+        return COLOR_VERY_RECENT;
+    } else if (ageHours < AGE_RECENT) {
+        return COLOR_RECENT;
+    } else if (ageHours < AGE_MODERATE) {
+        return COLOR_MODERATE;
+    } else if (ageHours < AGE_OLD) {
+        return COLOR_OLD;
+    } else {
+        return COLOR_VERY_OLD;
     }
 }
 
