@@ -427,7 +427,7 @@ header p {
 }
 
 .marker-info {
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.9);
     border: 1px solid #d32f2f;
     border-radius: 3px;
     padding: 2px 6px;
@@ -449,7 +449,7 @@ header p {
 }
 
 .marker-incident-name {
-    font-size: 0.6em;
+    font-size: 0.65em;
     color: #666;
     margin-top: 1px;
     font-style: italic;
