@@ -620,9 +620,18 @@ function displayAlerts(alertsToDisplay) {
             incidentNameHtml = `<div class="alert-incident-name">${alert.incidentName}</div>`;
         }
         
+        // Add source badge to distinguish between feeds
+        let sourceBadgeHtml = '';
+        if (alert.source) {
+            const sourceLabel = alert.source === 'CFA' ? 'CFA Alert' : 'Emergency VIC';
+            const sourceClass = alert.source === 'CFA' ? 'source-badge-cfa' : 'source-badge-emergency';
+            sourceBadgeHtml = `<div class="alert-source-badge ${sourceClass}">${sourceLabel}</div>`;
+        }
+        
         return `
             <div class="alert-item" data-alert-id="${originalIndex}" data-warning-level="${warningLevel}" onclick="selectAlert(${originalIndex})" style="border-left-color: ${warningStyle.color};">
                 <div class="alert-warning-badge">${warningStyle.label}</div>
+                ${sourceBadgeHtml}
                 <div class="alert-location" style="color: ${warningStyle.color};">${alert.location || 'Location Unknown'}</div>
                 ${incidentNameHtml}
                 <div class="alert-message">${alert.message}</div>

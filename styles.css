@@ -192,6 +192,30 @@ header p {
     color: #fff;  /* White text for red tier */
 }
 
+/* Source badges to distinguish between CFA alerts and Emergency Victoria incidents */
+.alert-source-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    font-weight: 600;
+    margin-left: 5px;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.source-badge-cfa {
+    background-color: #2196F3;  /* Blue for CFA alerts */
+    color: #fff;
+    border: 1px solid #1976D2;
+}
+
+.source-badge-emergency {
+    background-color: #4CAF50;  /* Green for Emergency VIC */
+    color: #fff;
+    border: 1px solid #388E3C;
+}
+
 .alert-location {
     font-weight: bold;
     color: #d32f2f;
