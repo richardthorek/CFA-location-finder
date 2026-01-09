@@ -1,13 +1,13 @@
 // Configuration
 const CONFIG = {
-    // IMPORTANT: Replace with your own MapBox token before production deployment
-    // This is a public demo token with rate limits - get your free token at https://account.mapbox.com/
-    mapboxToken: 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw',
+    // MapBox token will be loaded from environment variable via API
+    mapboxToken: null,
     // Center on Victoria, Australia
     mapCenter: [144.9631, -37.8136],
     mapZoom: 7,
-    // Azure Function endpoint - will need to be updated after deployment
+    // Azure Function endpoints
     apiEndpoint: '/api/getCFAFeed',
+    configEndpoint: '/api/getConfig',
     // Auto-refresh interval in milliseconds (1 minute)
     refreshInterval: 60000
 };
@@ -20,11 +20,31 @@ let selectedAlertId = null;
 let refreshIntervalId = null;
 
 // Initialize the application
-function init() {
+async function init() {
+    // Load configuration (including MapBox token from environment)
+    await loadConfig();
     initMap();
     setupEventListeners();
     loadAlerts();
     startAutoRefresh();
+}
+
+// Load configuration from API
+async function loadConfig() {
+    try {
+        const response = await fetch(CONFIG.configEndpoint);
+        if (!response.ok) throw new Error('Config not available');
+        const config = await response.json();
+        
+        // Set the MapBox token from environment variable
+        if (config.mapboxToken) {
+            CONFIG.mapboxToken = config.mapboxToken;
+        }
+    } catch (error) {
+        console.warn('Failed to load config from API, using fallback:', error);
+        // Fallback to demo token for local development
+        CONFIG.mapboxToken = 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
+    }
 }
 
 // Initialize MapBox map

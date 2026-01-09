@@ -45,13 +45,17 @@ cd ..
 
 3. Configure MapBox Token
 
-Edit `app.js` and replace the MapBox token:
-```javascript
-const CONFIG = {
-    mapboxToken: 'YOUR_MAPBOX_TOKEN_HERE',
-    // ...
-};
-```
+The application now reads the MapBox token from the `MAPBOX_TOKEN` environment variable.
+
+**For Local Development:**
+The app will use a fallback demo token if the environment variable is not set.
+
+**For Azure Deployment:**
+Set the `MAPBOX_TOKEN` environment variable in Azure Static Web App settings:
+1. Go to Azure Portal → Your Static Web App → Configuration
+2. Add a new Application Setting:
+   - **Name**: `MAPBOX_TOKEN`
+   - **Value**: Your MapBox API token
 
 Get a free token at: https://account.mapbox.com/
 
@@ -96,7 +100,7 @@ For the Azure Function, you can set environment variables in the Azure Portal:
 ## Usage
 
 1. Open the application in your browser
-2. The map will automatically load with the Victoria region centered
+2. The map will automatically load using the MapBox token from the environment variable
 3. Alerts automatically refresh every 1 minute
 4. Click "Refresh Alerts" to manually fetch the latest CFA alerts
 5. Click on any alert in the sidebar to view it on the map
