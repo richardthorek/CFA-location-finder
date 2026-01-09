@@ -16,6 +16,7 @@ let selectedAlertId = null;
 let refreshIntervalId = null;
 let userLocation = null;
 let userMarker = null;
+let autoZoomEnabled = true; // Track if auto-zoom is enabled
 
 // Load configuration from API
 async function loadConfig() {
@@ -52,6 +53,9 @@ async function init() {
     setupEventListeners();
     loadAlerts();
     startAutoRefresh();
+    
+    // Automatically detect user location on startup
+    getUserLocation();
 }
 
 // Initialize MapBox map
@@ -74,8 +78,9 @@ function setupEventListeners() {
         loadAlerts();
     });
     
+    // Toggle button for auto-zoom
     document.getElementById('locateBtn').addEventListener('click', () => {
-        getUserLocation();
+        toggleAutoZoom();
     });
 }
 
@@ -103,6 +108,11 @@ async function loadAlerts() {
         displayAlerts(alerts);
         updateMap(alerts);
         updateLastUpdate();
+        
+        // Re-apply auto-zoom if enabled and user location is available
+        if (autoZoomEnabled && userLocation) {
+            filterAndUpdateAlerts();
+        }
         
     } catch (error) {
         console.error('Error loading alerts:', error);
@@ -177,11 +187,14 @@ function getUserLocation() {
     const locateIcon = document.getElementById('locateIcon');
     
     if (!navigator.geolocation) {
-        alert('Geolocation is not supported by your browser');
+        console.warn('Geolocation is not supported by your browser');
+        // Update button to show it's disabled
+        locateBtn.disabled = true;
+        locateBtn.textContent = '📍 Location Unavailable';
+        autoZoomEnabled = false;
         return;
     }
     
-    locateBtn.disabled = true;
     locateIcon.textContent = '⏳';
     
     navigator.geolocation.getCurrentPosition(
@@ -204,17 +217,20 @@ function getUserLocation() {
                     .addTo(map);
             }
             
-            // Center map on user location and zoom to 100km view
-            map.flyTo({
-                center: [userLocation.lng, userLocation.lat],
-                zoom: 9 // Approximately 100km radius view
-            });
+            // Apply auto-zoom if enabled
+            if (autoZoomEnabled) {
+                // Center map on user location and zoom to 100km view
+                map.flyTo({
+                    center: [userLocation.lng, userLocation.lat],
+                    zoom: 9 // Approximately 100km radius view
+                });
+                
+                // Filter and update alerts within 100km
+                filterAndUpdateAlerts();
+            }
             
-            // Filter and update alerts within 100km
-            filterAndUpdateAlerts();
-            
-            locateBtn.disabled = false;
-            locateIcon.textContent = '📍';
+            // Update button to show auto-zoom is enabled
+            updateLocateButton();
         },
         (error) => {
             console.error('Error getting location:', error);
@@ -234,11 +250,52 @@ function getUserLocation() {
                     errorMsg += 'An unknown error occurred.';
             }
             
-            alert(errorMsg);
-            locateBtn.disabled = false;
-            locateIcon.textContent = '📍';
+            console.warn(errorMsg);
+            // Disable auto-zoom if location can't be obtained
+            autoZoomEnabled = false;
+            updateLocateButton();
         }
     );
+}
+
+// Toggle auto-zoom feature
+function toggleAutoZoom() {
+    autoZoomEnabled = !autoZoomEnabled;
+    updateLocateButton();
+    
+    if (autoZoomEnabled && userLocation) {
+        // Re-apply auto-zoom
+        map.flyTo({
+            center: [userLocation.lng, userLocation.lat],
+            zoom: 9
+        });
+        filterAndUpdateAlerts();
+    } else if (!autoZoomEnabled) {
+        // Show all alerts without filtering
+        displayAlerts(alerts);
+    }
+}
+
+// Update the locate button text and style based on auto-zoom state
+function updateLocateButton() {
+    const locateBtn = document.getElementById('locateBtn');
+    const locateIcon = document.getElementById('locateIcon');
+    
+    if (!userLocation) {
+        locateIcon.textContent = '📍';
+        locateBtn.classList.remove('btn-locate-disabled');
+        return;
+    }
+    
+    if (autoZoomEnabled) {
+        locateIcon.textContent = '📍';
+        locateBtn.classList.remove('btn-locate-disabled');
+        locateBtn.title = 'Click to disable auto-zoom';
+    } else {
+        locateIcon.textContent = '📍';
+        locateBtn.classList.add('btn-locate-disabled');
+        locateBtn.title = 'Click to enable auto-zoom';
+    }
 }
 
 // Calculate distance between two coordinates (Haversine formula)
