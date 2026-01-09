@@ -121,6 +121,7 @@ function parseCFAFeed(feedText) {
 
 /**
  * Parse CFA timestamp format: "HH:MM:SS YYYY-MM-DD"
+ * Note: CFA timestamps are in Australian Eastern Time (AEST/AEDT)
  */
 function parseTimestamp(timestamp) {
     try {
@@ -128,13 +129,22 @@ function parseTimestamp(timestamp) {
         if (parts.length === 2) {
             const time = parts[0];
             const date = parts[1];
-            return new Date(`${date}T${time}Z`).toISOString();
+            // Parse as local time, then convert to ISO
+            // CFA feed provides timestamps in Australian Eastern Time
+            return new Date(`${date}T${time}+11:00`).toISOString();
         }
     } catch (e) {
         // Fallback to current time
     }
     return new Date().toISOString();
 }
+
+// Common words to filter out when extracting location names
+const NON_LOCATION_KEYWORDS = [
+    'FIRE', 'GRASS', 'HOUSE', 'BATTERY', 'STRUCTURE', 'VEHICLE', 
+    'UNDEFINED', 'SPREADING', 'INCIDENT', 'STRIKE', 'TEAM', 
+    'CODE', 'TANKER', 'REQUIRED', 'ASSEMBLE'
+];
 
 /**
  * Extract location from CFA message
@@ -145,19 +155,24 @@ function extractLocation(message) {
     const cleanMessage = message.replace('@@ALERT ', '');
     
     // Try to extract street address and suburb
-    // Pattern: "NUMBER STREET_NAME SUBURB /CROSS_ST1 //CROSS_ST2"
+    // Pattern: Captures "15 VERONA CR FRASER RISE /" 
+    // Group 1: Street name (e.g., "VERONA CR")
+    // Group 2: Suburb name (e.g., "FRASER RISE")
     const addressMatch = cleanMessage.match(/\d+\s+([A-Z][A-Za-z\s]+?)\s+([A-Z][A-Z\s]+?)\s+\//);
     if (addressMatch) {
         const street = addressMatch[1].trim();
         const suburb = addressMatch[2].trim();
         
         // Filter out fire types
-        if (!suburb.match(/^(FIRE|GRASS|HOUSE|BATTERY|STRUCTURE|VEHICLE|UNDEFINED|SPREADING)/)) {
+        const filterPattern = new RegExp(`^(${NON_LOCATION_KEYWORDS.slice(0, 7).join('|')})`);
+        if (!suburb.match(filterPattern)) {
             return `${street}, ${suburb}`;
         }
     }
     
-    // Pattern: "ROAD_NAME SUBURB /CROSS_ST1"
+    // Pattern: Captures "SHELFORD-MT MERCER RD MOUNT MERCER /"
+    // Group 1: Road name (e.g., "SHELFORD-MT MERCER")
+    // Group 2: Suburb name (e.g., "MOUNT MERCER")
     const roadMatch = cleanMessage.match(/([A-Z][A-Za-z\s-]+?)\s+RD\s+([A-Z][A-Z\s]+?)\s+\//);
     if (roadMatch) {
         const road = roadMatch[1].trim();
@@ -165,13 +180,15 @@ function extractLocation(message) {
         return `${road} Rd, ${suburb}`;
     }
     
-    // Pattern: Extract suburb name before "/" or area code patterns
+    // Pattern: Extract suburb name before "/" or area code patterns (SV*, M <digit>)
+    // Captures any capitalized location name before these markers
     const suburbMatch = cleanMessage.match(/\b([A-Z][A-Z\s]{4,25}?)\s+(?:\/|SV[A-Z]+|M\s+\d)/);
     if (suburbMatch) {
         const suburb = suburbMatch[1].trim();
         
         // Filter out fire types and common non-location words
-        if (!suburb.match(/^(FIRE|GRASS|HOUSE|BATTERY|STRUCTURE|VEHICLE|UNDEFINED|SPREADING|INCIDENT|STRIKE|TEAM|CODE|TANKER|REQUIRED|ASSEMBLE)/)) {
+        const filterPattern = new RegExp(`^(${NON_LOCATION_KEYWORDS.join('|')})`);
+        if (!suburb.match(filterPattern)) {
             // Further clean up by removing trailing single letters or numbers
             const cleaned = suburb.replace(/\s+[A-Z]\d*$/, '').trim();
             if (cleaned.length >= 4) {
