@@ -67,6 +67,62 @@ npm start
 
 Then open `index.html` in a browser.
 
+## Environment Variables
+
+This application uses the following environment variables and configuration:
+
+### Required Variables
+
+#### MAPBOX_TOKEN (Frontend Configuration)
+
+**Purpose**: API token for MapBox mapping and geocoding services
+
+**How to configure**:
+1. Get a free token at: https://account.mapbox.com/
+2. Edit `app.js` and replace the token in the CONFIG object:
+   ```javascript
+   const CONFIG = {
+       mapboxToken: 'YOUR_MAPBOX_TOKEN_HERE',
+       // ...
+   };
+   ```
+
+**Default**: The repository includes a public demo token with rate limits. Replace it with your own token for production use.
+
+**MapBox Free Tier Limits**:
+- 50,000 map loads per month
+- 100,000 geocoding requests per month
+
+### Optional Variables
+
+#### CFA_FEED_URL (Azure Function Environment Variable)
+
+**Purpose**: Override the default CFA feed URL if needed
+
+**How to configure**:
+1. In Azure Portal, navigate to your Static Web App
+2. Go to Configuration → Application settings
+3. Add a new setting:
+   - Name: `CFA_FEED_URL`
+   - Value: Your custom CFA feed URL
+
+**Default**: `https://www.mazzanet.net.au/cfa/pager-cfa.php`
+
+**When to use**: Only needed if the default CFA feed URL changes or you want to use a different data source.
+
+### Deployment Variables
+
+#### AZURE_STATIC_WEB_APPS_API_TOKEN (GitHub Actions Secret)
+
+**Purpose**: Authentication token for deploying to Azure Static Web Apps
+
+**How to configure**:
+1. This is automatically created when you set up Azure Static Web Apps with GitHub
+2. Find it in Azure Portal → Your Static Web App → Manage deployment token
+3. It's automatically added to your GitHub repository secrets as `AZURE_STATIC_WEB_APPS_API_TOKEN`
+
+**When to use**: Required for CI/CD deployment via GitHub Actions. Do not modify unless you're recreating the Azure Static Web App.
+
 ## Deployment to Azure
 
 ### Azure Static Web Apps
@@ -82,16 +138,10 @@ Then open `index.html` in a browser.
 
 ### Configuration
 
-The app uses the following environment configuration:
-
-- **API Endpoint**: Automatically configured as `/api/getCFAFeed` in production
-- **MapBox Token**: Should be configured in `app.js`
-
-### Environment Variables (Optional)
-
-For the Azure Function, you can set environment variables in the Azure Portal:
-
-- `CFA_FEED_URL`: Override the default CFA feed URL if needed
+See the [Environment Variables](#environment-variables) section above for detailed configuration instructions, including:
+- MapBox API token setup (required)
+- Optional CFA feed URL override
+- Azure deployment credentials
 
 ## Usage
 
