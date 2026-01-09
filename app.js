@@ -104,7 +104,11 @@ async function loadAlerts() {
             alertsData = getMockAlerts();
         }
         
-        alerts = alertsData;
+        // Sort alerts by timestamp (most recent first)
+        alertsData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        // Limit to 20 most recent alerts
+        alerts = alertsData.slice(0, 20);
         displayAlerts(alerts);
         updateMap(alerts);
         updateLastUpdate();
@@ -387,13 +391,14 @@ function filterAndUpdateAlerts() {
         }
     });
     
-    // Filter alerts within 100km
-    const filteredAlerts = alerts.filter(alert => 
-        alert.distance && alert.distance <= 100
-    );
+    // Filter alerts with coordinates
+    const alertsWithCoords = alerts.filter(alert => alert.coordinates);
     
     // Sort by distance
-    filteredAlerts.sort((a, b) => a.distance - b.distance);
+    alertsWithCoords.sort((a, b) => a.distance - b.distance);
+    
+    // Limit to closest 10 alerts
+    const filteredAlerts = alertsWithCoords.slice(0, 10);
     
     // Update display
     displayAlerts(filteredAlerts);
@@ -507,7 +512,7 @@ function displayAlerts(alertsToDisplay) {
     
     if (alertsToDisplay.length === 0) {
         const noAlertsMsg = userLocation ? 
-            'No active alerts within 100km' : 
+            'No geocoded alerts found near you' : 
             'No active alerts at this time';
         alertsList.innerHTML = `<div class="no-alerts">${noAlertsMsg}</div>`;
         return;
@@ -539,8 +544,8 @@ async function updateMap(alerts) {
     markers.forEach(marker => marker.remove());
     markers = [];
     
-    // Add new markers
-    for (let i = 0; i < alerts.length; i++) {
+    // Add new markers (limit to 20)
+    for (let i = 0; i < Math.min(alerts.length, 20); i++) {
         const alert = alerts[i];
         
         if (!alert.coordinates) {
@@ -556,7 +561,18 @@ async function updateMap(alerts) {
         }
         
         if (alert.coordinates) {
-            const marker = new mapboxgl.Marker({ color: '#d32f2f' })
+            // Create custom marker element
+            const markerEl = document.createElement('div');
+            markerEl.className = 'custom-marker';
+            markerEl.innerHTML = `
+                <div class="marker-icon">🔥</div>
+                <div class="marker-info">
+                    <div class="marker-location">${alert.location || 'Unknown'}</div>
+                    <div class="marker-time">${formatTime(alert.timestamp)}</div>
+                </div>
+            `;
+            
+            const marker = new mapboxgl.Marker({ element: markerEl })
                 .setLngLat(alert.coordinates)
                 .setPopup(
                     new mapboxgl.Popup({ offset: 25 })
