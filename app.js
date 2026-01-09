@@ -104,7 +104,15 @@ async function loadAlerts() {
             alertsData = getMockAlerts();
         }
         
-        alerts = alertsData;
+        // Sort alerts by timestamp (most recent first)
+        alertsData.sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime() || 0;
+            const timeB = new Date(b.timestamp).getTime() || 0;
+            return timeB - timeA;
+        });
+        
+        // Limit to 20 most recent alerts
+        alerts = alertsData.slice(0, 20);
         displayAlerts(alerts);
         updateMap(alerts);
         updateLastUpdate();
@@ -400,13 +408,14 @@ function filterAndUpdateAlerts() {
         }
     });
     
-    // Filter alerts within 100km
-    const filteredAlerts = alerts.filter(alert => 
-        alert.distance && alert.distance <= 100
-    );
+    // Filter alerts with coordinates and valid distances
+    const alertsWithCoords = alerts.filter(alert => alert.coordinates && alert.distance !== undefined);
     
     // Sort by distance
-    filteredAlerts.sort((a, b) => a.distance - b.distance);
+    alertsWithCoords.sort((a, b) => a.distance - b.distance);
+    
+    // Limit to closest 10 alerts
+    const filteredAlerts = alertsWithCoords.slice(0, 10);
     
     // Update display
     displayAlerts(filteredAlerts);
@@ -520,7 +529,7 @@ function displayAlerts(alertsToDisplay) {
     
     if (alertsToDisplay.length === 0) {
         const noAlertsMsg = userLocation ? 
-            'No active alerts within 100km' : 
+            'No alerts found near you' : 
             'No active alerts at this time';
         alertsList.innerHTML = `<div class="no-alerts">${noAlertsMsg}</div>`;
         return;
@@ -569,7 +578,39 @@ async function updateMap(alerts) {
         }
         
         if (alert.coordinates) {
-            const marker = new mapboxgl.Marker({ color: '#d32f2f' })
+            // Create custom marker element
+            const markerEl = document.createElement('div');
+            markerEl.className = 'custom-marker';
+            markerEl.setAttribute('role', 'button');
+            markerEl.setAttribute('aria-label', `Fire alert at ${alert.location || 'unknown location'}`);
+            
+            // Create marker icon
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'marker-icon';
+            iconDiv.textContent = '🔥';
+            iconDiv.setAttribute('aria-hidden', 'true');
+            
+            // Create marker info container
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'marker-info';
+            
+            // Create location text (textContent automatically escapes HTML)
+            const locationDiv = document.createElement('div');
+            locationDiv.className = 'marker-location';
+            locationDiv.textContent = alert.location || 'Unknown';
+            
+            // Create time text
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'marker-time';
+            timeDiv.textContent = formatTime(alert.timestamp);
+            
+            // Assemble the marker
+            infoDiv.appendChild(locationDiv);
+            infoDiv.appendChild(timeDiv);
+            markerEl.appendChild(iconDiv);
+            markerEl.appendChild(infoDiv);
+            
+            const marker = new mapboxgl.Marker({ element: markerEl })
                 .setLngLat(alert.coordinates)
                 .setPopup(
                     new mapboxgl.Popup({ offset: 25 })
@@ -637,6 +678,8 @@ function updateLastUpdate() {
 function formatTime(timestamp) {
     if (!timestamp) return 'Unknown time';
     const date = new Date(timestamp);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return 'Unknown time';
     return date.toLocaleString();
 }
 
