@@ -85,6 +85,25 @@ function setupEventListeners() {
     });
 }
 
+// Trigger backend fetch (will only fetch if 1 minute has passed since last fetch)
+async function triggerBackendFetch() {
+    try {
+        const response = await fetch('/api/fetchAndStoreCFA');
+        if (response.ok) {
+            const result = await response.json();
+            if (result.skipped) {
+                console.log(`Backend fetch skipped: ${result.reason} (${result.secondsSinceLastFetch}s since last)`);
+            } else if (result.success) {
+                console.log(`Backend fetch completed: ${result.alertCount} alerts, ${result.enrichedCount} enriched`);
+            }
+        } else {
+            console.warn('Backend fetch failed:', response.status);
+        }
+    } catch (error) {
+        console.warn('Error triggering backend fetch:', error);
+    }
+}
+
 // Load alerts from the API
 async function loadAlerts() {
     const refreshBtn = document.getElementById('refreshBtn');
@@ -94,6 +113,9 @@ async function loadAlerts() {
     refreshBtn.disabled = true;
     
     try {
+        // Trigger backend fetch first (non-blocking, happens in background)
+        triggerBackendFetch().catch(err => console.warn('Background fetch error:', err));
+        
         // Try to fetch from Azure Function first, fallback to mock data
         let alertsData;
         try {

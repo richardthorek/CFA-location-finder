@@ -6,21 +6,33 @@ const STORAGE_STRING = process.env.STORAGE_STRING;
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN;
 const CFA_FEED_URL = process.env.CFA_FEED_URL || 'https://www.mazzanet.net.au/cfa/pager-cfa.php';
 
+// Minimum interval between fetches (1 minute)
+const FETCH_INTERVAL_MS = 60 * 1000;
+
 /**
- * Timer-triggered Azure Function to fetch CFA feed, enrich with geocoding, and store in Table Storage
- * Runs every 10 minutes to minimize API calls while keeping data fresh
+ * HTTP-triggered Azure Function to fetch CFA feed, enrich with geocoding, and store in Table Storage
+ * Only fetches if at least 1 minute has passed since the last fetch
+ * This is called by the frontend when users have pages open
  */
-module.exports = async function (context, myTimer) {
-    context.log('Fetch and Store CFA data function triggered');
+module.exports = async function (context, req) {
+    context.log('Fetch and Store CFA data function called');
 
     // Check if storage connection string is configured
     if (!STORAGE_STRING) {
         context.log.error('STORAGE_STRING environment variable is not configured');
+        context.res = {
+            status: 500,
+            body: { error: 'Storage not configured' }
+        };
         return;
     }
 
     if (!MAPBOX_TOKEN) {
         context.log.error('MAPBOX_TOKEN environment variable is not configured');
+        context.res = {
+            status: 500,
+            body: { error: 'MapBox token not configured' }
+        };
         return;
     }
 
@@ -39,6 +51,43 @@ module.exports = async function (context, myTimer) {
             } else {
                 context.log.warn('Table creation check returned unexpected error:', err.message);
             }
+        }
+
+        // Check when the last fetch occurred
+        let lastFetchTime = null;
+        try {
+            const metadata = await tableClient.getEntity('metadata', 'lastFetch');
+            lastFetchTime = new Date(metadata.fetchTime);
+            context.log('Last fetch was at:', lastFetchTime.toISOString());
+        } catch (err) {
+            // No previous fetch recorded
+            if (err.statusCode === 404) {
+                context.log('No previous fetch found, will fetch now');
+            } else {
+                context.log.warn('Error reading last fetch time:', err.message);
+            }
+        }
+
+        // Check if enough time has passed since last fetch
+        const now = new Date();
+        if (lastFetchTime && (now - lastFetchTime) < FETCH_INTERVAL_MS) {
+            const secondsSinceLastFetch = Math.floor((now - lastFetchTime) / 1000);
+            context.log(`Skipping fetch - only ${secondsSinceLastFetch}s since last fetch (minimum: 60s)`);
+            
+            context.res = {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                body: JSON.stringify({
+                    skipped: true,
+                    reason: 'Too recent',
+                    secondsSinceLastFetch: secondsSinceLastFetch,
+                    lastFetchTime: lastFetchTime.toISOString()
+                })
+            };
+            return;
         }
 
         // Fetch the CFA feed
@@ -137,9 +186,35 @@ module.exports = async function (context, myTimer) {
 
         context.log(`Successfully processed ${alerts.length} alerts, enriched ${enrichedCount} new locations`);
 
+        // Return success response
+        context.res = {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            body: JSON.stringify({
+                success: true,
+                fetchTime: fetchTime.toISOString(),
+                alertCount: alerts.length,
+                enrichedCount: enrichedCount
+            })
+        };
+
     } catch (error) {
         context.log.error('Error in fetch and store function:', error);
-        throw error;
+        
+        context.res = {
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            body: JSON.stringify({
+                error: 'Failed to fetch and store data',
+                message: error.message
+            })
+        };
     }
 };
 

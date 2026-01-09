@@ -1,7 +1,7 @@
 # Deployment Guide for Backend Fetch Changes
 
 ## Overview
-This deployment implements a timer-triggered backend system that fetches and enriches CFA alert data, storing it in Azure Table Storage for efficient distribution to all users.
+This deployment implements an on-demand backend system that fetches and enriches CFA alert data only when users have pages open. The backend is triggered by the frontend every minute and rate-limits fetches to once per minute, storing enriched data in Azure Table Storage for efficient distribution to all users. When all pages are closed, fetching stops automatically.
 
 ## Pre-Deployment Requirements
 
@@ -87,8 +87,21 @@ The `fetchAndStoreCFA` function should start automatically and run every 10 minu
 
 **Check Logs:**
 - Azure Portal → Your Static Web App → Functions → fetchAndStoreCFA → Monitor
+### 1. Verify Fetch Function
+The `fetchAndStoreCFA` function is now HTTP-triggered and called by the frontend.
+
+**Check Frontend Calls:**
+1. Open your app URL in a browser
+2. Open Developer Tools (F12) → Network tab
+3. Look for calls to `/api/fetchAndStoreCFA`
+4. First call should return `{"success": true, ...}`
+5. Subsequent calls within 1 minute should return `{"skipped": true, ...}`
+
+**Check Logs:**
+- Azure Portal → Your Static Web App → Functions → fetchAndStoreCFA → Monitor
 - Look for log entries showing:
-  - "Fetching CFA feed from: ..."
+  - "Fetch and Store CFA data function called"
+  - "Skipping fetch - only Xs since last fetch" (for rate-limited calls)
   - "Parsed X alerts from feed"
   - "Successfully processed X alerts, enriched Y new locations"
 
@@ -108,7 +121,11 @@ Expected response:
 1. Open your app URL in a browser
 2. Check that alerts load correctly
 3. Verify markers appear on the map with coordinates
-4. Check browser console for any errors
+4. Check browser console for:
+   - "Backend fetch completed: X alerts, Y enriched" (on first load)
+   - "Backend fetch skipped: Too recent" (on subsequent refreshes within 1 minute)
+5. Verify auto-refresh works every 1 minute
+6. Close all tabs and verify fetching stops (no more calls to fetchAndStoreCFA)
 
 ### 4. Verify Table Storage
 Check that data is being stored:
@@ -125,16 +142,17 @@ Check that data is being stored:
 
 ## Troubleshooting
 
-### Timer Function Not Running
+### Fetch Function Not Running
 - **Check Configuration:** Verify `STORAGE_STRING` and `MAPBOX_TOKEN` are set
-- **Check Logs:** Look for error messages in Function logs
-- **Check Schedule:** Timer is configured for `0 */10 * * * *` (every 10 minutes)
-- **Manual Trigger:** You can manually trigger the function from Azure Portal for testing
+- **Check Logs:** Look for error messages in Function logs in Azure Portal
+- **Check Frontend Calls:** Open browser console and verify fetchAndStoreCFA is being called
+- **Manual Test:** Call `/api/fetchAndStoreCFA` directly in browser to test
 
 ### API Returns No Data
-- **Wait for First Run:** Timer function needs to run at least once (up to 10 minutes)
+- **Wait for First Fetch:** Function needs to run at least once (triggered when first user opens page)
 - **Check Table Storage:** Verify data exists in CFAAlerts table
 - **Check Logs:** Look for errors in getCFAFeed function logs
+- **Test Fetch:** Open page and check if fetchAndStoreCFA is being called in network tab
 
 ### Geocoding Not Working
 - **Check MapBox Token:** Verify token is valid and has quota remaining
@@ -149,14 +167,20 @@ Check that data is being stored:
 ## Migration Notes
 
 ### What Changed
-1. **Frontend:** No longer performs geocoding - receives pre-enriched data
-2. **Backend:** New timer function performs data fetching and enrichment
-3. **Storage:** New dependency on Azure Table Storage
+1. **Frontend:** 
+   - No longer performs geocoding - receives pre-enriched data
+   - Calls fetchAndStoreCFA endpoint when page loads and every minute
+   - Automatically stops fetching when all pages are closed
+2. **Backend:** 
+   - Changed from timer trigger to HTTP trigger (fetchAndStoreCFA)
+   - Rate-limits fetches to once per minute maximum
+   - Only fetches when called by frontend (when users have pages open)
+3. **Storage:** Dependency on Azure Table Storage for caching and rate limiting
 
 ### Backwards Compatibility
-- The API endpoint URL remains the same (`/api/getCFAFeed`)
+- The getCFAFeed API endpoint URL remains the same
 - Response format is compatible with existing frontend
-- No changes required to frontend code after deployment
+- New fetchAndStoreCFA endpoint is backward compatible (returns JSON with status)
 
 ### Rollback Plan
 If issues occur:
@@ -167,28 +191,36 @@ If issues occur:
 ## Performance Expectations
 
 ### Initial Run
-- First timer execution may take 2-5 minutes (fetching + geocoding all alerts)
-- Subsequent runs are faster (only geocode new alerts)
+- First fetch may take 2-5 minutes (fetching + geocoding all alerts)
+- Subsequent fetches are faster (only geocode new alerts)
 
 ### Steady State
-- Timer runs every 10 minutes
-- Geocoding only new alerts (typically 0-10 per run)
+- Fetches happen every 1 minute while users have pages open
+- Rate-limited to prevent excessive API calls
+- Geocoding only new alerts (typically 0-10 per fetch)
 - API response time: <1 second (reading from cache)
 - Frontend load time: Significantly faster (no geocoding delays)
+- Automatic stop when all pages closed (zero cost when idle)
 
 ### Resource Usage
 - Storage: ~1 KB per alert (minimal cost)
 - MapBox API: ~1 geocoding request per new alert (vs. per user previously)
-- Azure Functions: Timer runs 144 times/day, API calls as needed
+- Azure Functions: 
+  - fetchAndStoreCFA: Called every minute per active user (rate-limited)
+  - getCFAFeed: Called every minute per active user
+  - getConfig: Called once per page load
+- Cost scales with active users, but fetching rate-limited to 1/minute max
 
 ## Monitoring
 
 ### Key Metrics to Watch
-1. **Timer Function Success Rate:** Should be ~100%
-2. **Geocoding Success Rate:** Check enrichedCount in logs
-3. **API Response Time:** Should be <1s
-4. **Storage Growth:** Monitor table size over time
-5. **MapBox API Usage:** Should decrease significantly vs. old implementation
+1. **Fetch Function Call Rate:** Should match number of active users calling every minute
+2. **Fetch Function Skip Rate:** Most calls should be skipped due to rate limiting
+3. **Geocoding Success Rate:** Check enrichedCount in logs
+4. **API Response Time:** Should be <1s for getCFAFeed
+5. **Storage Growth:** Monitor table size over time
+6. **MapBox API Usage:** Should be minimal (only new alerts geocoded)
+7. **Function Execution Time:** fetchAndStoreCFA should complete in <30s
 
 ### Alerts to Set Up
 - Timer function failures

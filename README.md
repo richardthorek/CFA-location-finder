@@ -9,9 +9,10 @@ A real-time fire alert map for Victoria, Australia. This application displays Co
 - 🎯 **Smart filtering** - Automatically show incidents within 100km radius
 - 📏 **Distance calculation** - See how far each incident is from your location
 - 🛣️ **Route display** - View driving routes and travel times to selected incidents
-- 🔄 Real-time feed updates from CFA (backend fetches every 10 minutes)
+- 🔄 **Smart fetching** - Backend fetches every 1 minute while users have pages open
 - ⏱️ Auto-refresh every 1 minute (from cached data)
 - 💾 **Efficient caching** - Data is enriched once and shared across all users
+- 🛑 **Auto-stops** - Fetching stops when all pages are closed (no wasted API calls)
 - 📍 Automatic location parsing and geocoding (backend)
 - 📟 Alert details with timestamps
 - 📱 Responsive design for mobile and desktop
@@ -22,8 +23,8 @@ A real-time fire alert map for Victoria, Australia. This application displays Co
 This is a static web application designed to deploy on Azure Static Web Apps with an Azure Function backend:
 
 - **Frontend**: Pure HTML, CSS, and JavaScript (no frameworks)
-- **Backend**: Azure Functions with timer-triggered data fetching and storage
-  - `fetchAndStoreCFA`: Timer function (runs every 10 minutes) to fetch, enrich, and store CFA alerts
+- **Backend**: Azure Functions with on-demand data fetching and storage
+  - `fetchAndStoreCFA`: HTTP endpoint triggered by frontend to fetch, enrich, and store CFA alerts (rate-limited to once per minute)
   - `getCFAFeed`: HTTP endpoint to retrieve cached alerts from Table Storage
   - `getConfig`: HTTP endpoint to provide frontend configuration
 - **Storage**: Azure Table Storage for caching enriched alert data
@@ -31,10 +32,12 @@ This is a static web application designed to deploy on Azure Static Web Apps wit
 - **Geocoding**: MapBox Geocoding API for location lookups (backend only, once per alert)
 
 **Data Flow**:
-1. Timer function fetches CFA feed every 10 minutes
-2. Backend parses alerts and geocodes locations using MapBox API
-3. Enriched data (with coordinates) is stored in Azure Table Storage
-4. Frontend fetches pre-enriched data from Table Storage via API
+1. Frontend calls fetchAndStoreCFA endpoint when page loads and every minute while open
+2. Backend checks if 1 minute has passed since last fetch (rate limiting)
+3. If enough time passed, backend fetches CFA feed and geocodes new locations
+4. Enriched data (with coordinates) is stored in Azure Table Storage
+5. Frontend fetches pre-enriched data from Table Storage via getCFAFeed API
+6. When all pages are closed, fetching stops automatically (no wasted API calls)
 5. Multiple users share the same cached data, minimizing external API calls
 
 ## Local Development
