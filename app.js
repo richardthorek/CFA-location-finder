@@ -105,7 +105,11 @@ async function loadAlerts() {
         }
         
         // Sort alerts by timestamp (most recent first)
-        alertsData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        alertsData.sort((a, b) => {
+            const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return timeB - timeA;
+        });
         
         // Limit to 20 most recent alerts
         alerts = alertsData.slice(0, 20);
@@ -564,13 +568,31 @@ async function updateMap(alerts) {
             // Create custom marker element
             const markerEl = document.createElement('div');
             markerEl.className = 'custom-marker';
-            markerEl.innerHTML = `
-                <div class="marker-icon">🔥</div>
-                <div class="marker-info">
-                    <div class="marker-location">${alert.location || 'Unknown'}</div>
-                    <div class="marker-time">${formatTime(alert.timestamp)}</div>
-                </div>
-            `;
+            
+            // Create marker icon
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'marker-icon';
+            iconDiv.textContent = '🔥';
+            
+            // Create marker info container
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'marker-info';
+            
+            // Create location text
+            const locationDiv = document.createElement('div');
+            locationDiv.className = 'marker-location';
+            locationDiv.textContent = alert.location || 'Unknown';
+            
+            // Create time text
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'marker-time';
+            timeDiv.textContent = formatTime(alert.timestamp);
+            
+            // Assemble the marker
+            infoDiv.appendChild(locationDiv);
+            infoDiv.appendChild(timeDiv);
+            markerEl.appendChild(iconDiv);
+            markerEl.appendChild(infoDiv);
             
             const marker = new mapboxgl.Marker({ element: markerEl })
                 .setLngLat(alert.coordinates)
