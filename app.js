@@ -112,6 +112,11 @@ async function loadAlerts() {
 function parseLocation(message) {
     if (!message) return null;
     
+    // Constants for location extraction (match backend)
+    const MIN_SUBURB_LENGTH = 3;
+    const MIN_SUBURB_CHARS = 4;
+    const MAX_SUBURB_CHARS = 30;
+    
     // Common non-location keywords to filter out
     const nonLocationKeywords = [
         'FIRE', 'GRASS', 'HOUSE', 'BATTERY', 'STRUCTURE', 'VEHICLE',
@@ -125,7 +130,7 @@ function parseLocation(message) {
     const streetMatch = message.match(/\b(\d+\s+[A-Z][A-Za-z\s-]+?)\s+([A-Z][A-Z\s]+?)\s+\//);
     if (streetMatch) {
         const suburb = streetMatch[2].trim().replace(/\s+[A-Z]\d*$/, '').trim();
-        if (!suburb.match(filterPattern) && suburb.length >= 3) {
+        if (!suburb.match(filterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
             return suburb;
         }
     }
@@ -135,7 +140,7 @@ function parseLocation(message) {
     const roadMatch = message.match(/\b([A-Z][A-Za-z\s-]+?)\s+RD\s+([A-Z][A-Z\s]+?)(?:\s+\/|\s+SV[A-Z]+|\s+M\s+\d)/);
     if (roadMatch) {
         const suburb = roadMatch[2].trim();
-        if (!suburb.match(filterPattern) && suburb.length >= 3) {
+        if (!suburb.match(filterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
             return suburb;
         }
     }
@@ -144,13 +149,13 @@ function parseLocation(message) {
     const assembleMatch = message.match(/ASSEMBLE AT\s+[A-Z\s-]+?\s+(?:\d+\s+)?[A-Z][A-Za-z\s-]+?\s+([A-Z][A-Z\s]+?)\s+\//);
     if (assembleMatch) {
         const suburb = assembleMatch[1].trim();
-        if (!suburb.match(filterPattern) && suburb.length >= 3) {
+        if (!suburb.match(filterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
             return suburb;
         }
     }
     
     // Pattern 4: Extract suburb before regional codes (SV*, M <digit>)
-    const suburbMatch = message.match(/\b([A-Z][A-Z\s]{4,30}?)\s+(?:SV[A-Z]+|M\s+\d)/);
+    const suburbMatch = message.match(new RegExp(`\\b([A-Z][A-Z\\s]{${MIN_SUBURB_CHARS},${MAX_SUBURB_CHARS}}?)\\s+(?:SV[A-Z]+|M\\s+\\d)`));
     if (suburbMatch) {
         const suburb = suburbMatch[1].trim();
         const words = suburb.split(/\s+/);
@@ -158,9 +163,9 @@ function parseLocation(message) {
         // Get the last few words that look like a suburb name
         for (let i = Math.max(0, words.length - 3); i < words.length; i++) {
             const candidate = words.slice(i).join(' ');
-            if (!candidate.match(filterPattern) && candidate.length >= 4) {
+            if (!candidate.match(filterPattern) && candidate.length >= MIN_SUBURB_CHARS) {
                 const cleaned = candidate.replace(/\s+[A-Z]\d*$/, '').trim();
-                if (cleaned.length >= 4) {
+                if (cleaned.length >= MIN_SUBURB_CHARS) {
                     return cleaned;
                 }
             }

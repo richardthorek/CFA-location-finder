@@ -149,6 +149,12 @@ const NON_LOCATION_KEYWORDS = [
     'LEAKING', 'DOWN', 'POWERLINES', 'SPREAD', 'BUSH', 'SCRUB'
 ];
 
+// Constants for location extraction
+const MIN_SUBURB_LENGTH = 3;
+const MIN_SUBURB_CHARS = 4;
+const MAX_SUBURB_CHARS = 30;
+const SUBURB_PREFIX_ST = 'ST ';
+
 /**
  * Extract location from CFA message
  * CFA messages follow patterns:
@@ -172,8 +178,8 @@ function extractLocation(message) {
         
         // Clean up suburb - remove leading "ST" if it's not part of the name
         let cleanSuburb = suburb;
-        if (cleanSuburb.startsWith('ST ') && cleanSuburb.length > 3) {
-            cleanSuburb = cleanSuburb.substring(3);
+        if (cleanSuburb.startsWith(SUBURB_PREFIX_ST) && cleanSuburb.length > SUBURB_PREFIX_ST.length) {
+            cleanSuburb = cleanSuburb.substring(SUBURB_PREFIX_ST.length);
         }
         
         // For assembly points, just return the suburb as it's most useful for geocoding
@@ -190,10 +196,10 @@ function extractLocation(message) {
         
         // Filter out fire types and non-location keywords
         const filterPattern = new RegExp(`^(${NON_LOCATION_KEYWORDS.join('|')})\\b`);
-        if (!suburb.match(filterPattern) && suburb.length >= 3) {
+        if (!suburb.match(filterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
             // Clean up suburb name (remove trailing single letters/numbers that might be grid refs)
             const cleanSuburb = suburb.replace(/\s+[A-Z]\d*$/, '').trim();
-            if (cleanSuburb.length >= 3) {
+            if (cleanSuburb.length >= MIN_SUBURB_LENGTH) {
                 return `${streetAddress}, ${cleanSuburb}`;
             }
         }
@@ -207,7 +213,7 @@ function extractLocation(message) {
     if (cornerMatch) {
         const suburb = cornerMatch[1].trim();
         const filterPattern = new RegExp(`^(${NON_LOCATION_KEYWORDS.join('|')})\\b`);
-        if (!suburb.match(filterPattern) && suburb.length >= 3) {
+        if (!suburb.match(filterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
             return suburb;
         }
     }
@@ -225,7 +231,7 @@ function extractLocation(message) {
         const roadFilterPattern = new RegExp(`\\b(${NON_LOCATION_KEYWORDS.join('|')})\\b`);
         const suburbFilterPattern = new RegExp(`^(${NON_LOCATION_KEYWORDS.join('|')})\\b`);
         
-        if (!road.match(roadFilterPattern) && !suburb.match(suburbFilterPattern) && suburb.length >= 3) {
+        if (!road.match(roadFilterPattern) && !suburb.match(suburbFilterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
             return `${road} Rd, ${suburb}`;
         }
     }
@@ -237,9 +243,9 @@ function extractLocation(message) {
         const address = atLocationMatch[1].trim();
         const suburb = atLocationMatch[2].trim();
         const filterPattern = new RegExp(`^(${NON_LOCATION_KEYWORDS.join('|')})\\b`);
-        if (!suburb.match(filterPattern) && suburb.length >= 3) {
+        if (!suburb.match(filterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
             const cleanSuburb = suburb.replace(/\s+[A-Z]\d*$/, '').trim();
-            if (cleanSuburb.length >= 3) {
+            if (cleanSuburb.length >= MIN_SUBURB_LENGTH) {
                 return `${address}, ${cleanSuburb}`;
             }
         }
@@ -249,7 +255,7 @@ function extractLocation(message) {
     // Example: "GRASS FIRE BULDAR TRAIL RD COMBIENBAR SVSE" -> COMBIENBAR
     // Example: "BALLARAT RD SUNSHINE NORTH M 26" -> SUNSHINE NORTH
     // This is a fallback for messages that don't match previous patterns
-    const suburbOnlyMatch = cleanMessage.match(/\b([A-Z][A-Z\s]{4,30}?)\s+(?:SV[A-Z]+|M\s+\d)/);
+    const suburbOnlyMatch = cleanMessage.match(new RegExp(`\\b([A-Z][A-Z\\s]{${MIN_SUBURB_CHARS},${MAX_SUBURB_CHARS}}?)\\s+(?:SV[A-Z]+|M\\s+\\d)`));
     if (suburbOnlyMatch) {
         const suburb = suburbOnlyMatch[1].trim();
         
@@ -268,7 +274,7 @@ function extractLocation(message) {
             }
             
             // Skip if too short or looks like a grid reference
-            if (candidate.length < 4 || candidate.match(/^[A-Z]$/) || candidate.match(/^\d/)) {
+            if (candidate.length < MIN_SUBURB_CHARS || candidate.match(/^[A-Z]$/) || candidate.match(/^\d/)) {
                 continue;
             }
             
@@ -282,7 +288,7 @@ function extractLocation(message) {
     }
     
     // Pattern 7: Final fallback - look for suburb before "/"
-    const slashMatch = cleanMessage.match(/\b([A-Z][A-Z\s]{4,30}?)\s+\//);
+    const slashMatch = cleanMessage.match(new RegExp(`\\b([A-Z][A-Z\\s]{${MIN_SUBURB_CHARS},${MAX_SUBURB_CHARS}}?)\\s+\\/`));
     if (slashMatch) {
         const suburb = slashMatch[1].trim();
         const filterPattern = new RegExp(`^(${NON_LOCATION_KEYWORDS.join('|')})\\b`);
@@ -291,9 +297,9 @@ function extractLocation(message) {
         // Get last 1-3 words that look like a suburb name
         for (let i = Math.max(0, words.length - 3); i < words.length; i++) {
             const candidate = words.slice(i).join(' ');
-            if (!candidate.match(filterPattern) && candidate.length >= 4) {
+            if (!candidate.match(filterPattern) && candidate.length >= MIN_SUBURB_CHARS) {
                 const cleaned = candidate.replace(/\s+[A-Z]\d*$/, '').trim();
-                if (cleaned.length >= 4) {
+                if (cleaned.length >= MIN_SUBURB_CHARS) {
                     return cleaned;
                 }
             }
