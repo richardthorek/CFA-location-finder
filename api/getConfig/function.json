@@ -5,8 +5,10 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get"],
-      "route": "getCFAFeed"
+      "methods": [
+        "get"
+      ],
+      "route": "getConfig"
     },
     {
       "type": "http",

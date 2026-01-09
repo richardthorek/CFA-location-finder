@@ -9,7 +9,8 @@ const fetch = require('node-fetch');
 module.exports = async function (context, req) {
     context.log('CFA Feed request received');
 
-    const CFA_FEED_URL = 'https://www.mazzanet.net.au/cfa/pager-cfa.php';
+    // Get CFA feed URL from environment variable or use default
+    const CFA_FEED_URL = process.env.CFA_FEED_URL || 'https://www.mazzanet.net.au/cfa/pager-cfa.php';
 
     try {
         // Fetch the CFA feed

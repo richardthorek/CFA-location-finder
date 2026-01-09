@@ -1,14 +1,10 @@
-// Configuration
-const CONFIG = {
-    // IMPORTANT: Replace with your own MapBox token before production deployment
-    // This is a public demo token with rate limits - get your free token at https://account.mapbox.com/
+// Configuration - will be loaded from API
+let CONFIG = {
+    // Fallback values for local development without API
     mapboxToken: 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw',
-    // Center on Victoria, Australia
     mapCenter: [144.9631, -37.8136],
     mapZoom: 7,
-    // Azure Function endpoint - will need to be updated after deployment
     apiEndpoint: '/api/getCFAFeed',
-    // Auto-refresh interval in milliseconds (1 minute)
     refreshInterval: 60000
 };
 
@@ -19,8 +15,37 @@ let alerts = [];
 let selectedAlertId = null;
 let refreshIntervalId = null;
 
+// Load configuration from API
+async function loadConfig() {
+    try {
+        const response = await fetch('/api/getConfig');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const config = await response.json();
+        
+        // Update CONFIG with values from API
+        CONFIG = {
+            ...CONFIG,
+            ...config
+        };
+        
+        console.log('Configuration loaded from API');
+        return true;
+    } catch (error) {
+        console.warn('Failed to load configuration from API, using fallback values:', error);
+        return false;
+    }
+}
+
 // Initialize the application
-function init() {
+async function init() {
+    // Load configuration first
+    await loadConfig();
+    
+    // Then initialize the rest of the app
     initMap();
     setupEventListeners();
     loadAlerts();
