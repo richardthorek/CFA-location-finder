@@ -72,6 +72,7 @@ header p {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    margin-bottom: 10px;
 }
 
 .btn:hover {
@@ -80,6 +81,28 @@ header p {
 
 .btn:active {
     transform: scale(0.98);
+}
+
+.btn.btn-locate {
+    background: #1976d2;
+}
+
+.btn.btn-locate:hover {
+    background: #1565c0;
+}
+
+.btn.btn-locate-disabled {
+    background: #757575;
+    opacity: 0.7;
+}
+
+.btn.btn-locate-disabled:hover {
+    background: #616161;
+}
+
+.btn:disabled {
+    background: #9e9e9e;
+    cursor: not-allowed;
 }
 
 #refreshIcon {
@@ -157,6 +180,13 @@ header p {
     font-size: 0.8em;
     color: #999;
     margin-top: 8px;
+}
+
+.alert-distance {
+    font-size: 0.85em;
+    color: #1976d2;
+    margin-top: 5px;
+    font-weight: 500;
 }
 
 .error-message {
