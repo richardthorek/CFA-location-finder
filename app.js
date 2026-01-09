@@ -680,24 +680,24 @@ async function updateMap(alertsToShow) {
             locationDiv.style.color = warningStyle.color;
             locationDiv.textContent = alert.location || 'Unknown';
             
+            // Assemble info container with location and optional incident name
+            infoDiv.appendChild(locationDiv);
+            
             // Create incident name in small font below location
             if (alert.incidentName) {
                 const incidentNameDiv = document.createElement('div');
                 incidentNameDiv.className = 'marker-incident-name';
                 incidentNameDiv.textContent = alert.incidentName;
-                infoDiv.appendChild(locationDiv);
                 infoDiv.appendChild(incidentNameDiv);
-            } else {
-                infoDiv.appendChild(locationDiv);
             }
             
-            // Create time text
+            // Create and add time text
             const timeDiv = document.createElement('div');
             timeDiv.className = 'marker-time';
             timeDiv.textContent = formatTime(alert.timestamp);
             infoDiv.appendChild(timeDiv);
             
-            // Assemble the marker
+            // Assemble the marker element
             markerEl.appendChild(iconDiv);
             markerEl.appendChild(infoDiv);
             

@@ -172,7 +172,7 @@ function determineWarningLevel(incidentData) {
     const status = (incidentData.status || '').toUpperCase();
     const vehicles = parseInt(incidentData.vehicles || '0', 10);
     
-    // Check for explicit warning indicators in status
+    // Check for explicit warning indicators in status (using uppercase strings)
     if (status.includes('EMERGENCY')) {
         return 'emergency';
     }
