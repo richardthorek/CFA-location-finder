@@ -5,6 +5,87 @@ This document tracks the architecture, design decisions, and development roadmap
 
 ## Recent Changes
 
+### Map Marker Redesign for Improved Visibility (January 2026)
+
+**Overview:** Comprehensive redesign of map alert icons to reduce visual clutter, improve information hierarchy through color-coding by recency, and enhance auto-zoom logic.
+
+**Problem Statement:**
+- Alert icons and labels covered critical map portions, obscuring locations and fire alerts
+- Difficult to identify most recent alerts at a glance
+- Auto-zoom showed arbitrary top 10 alerts per feed within 100km, not always the most relevant
+
+**Key Features Implemented:**
+1. **Smaller Default Marker Size**
+   - Reduced icon size by ~45% (0.9em for CFA, 1.1em for Emergency)
+   - Labels hidden by default (opacity: 0, transform: scale(0.8))
+   - Minimal footprint prevents map obscuration
+   - Removed constant floating animation for cleaner appearance
+
+2. **Interactive Expansion**
+   - Hover: Icons scale to 2.2x, labels appear smoothly
+   - Selection: Icons scale to 2.5x with enhanced glow
+   - Progressive disclosure keeps map clean until interaction needed
+   - Bounce animation provides interaction feedback
+
+3. **Color-Coding by Recency**
+   - 0-30 min: Bright red (#FF4444) - immediate attention
+   - 30-60 min: Bright orange (#FF6B35) - recent/active
+   - 1-2 hours: Yellow-orange (#FFB84D) - moderately recent
+   - 2-4 hours: Yellow (#FBE032) - getting older
+   - 4+ hours: Gray (#95A5A6) - historical context
+   - Allows instant visual recognition of newest alerts
+
+4. **Improved Auto-Zoom Logic**
+   - Changed from "top 10 per feed within 100km" to "20 closest alerts overall"
+   - Combines CFA and Emergency feeds before distance sorting
+   - Ensures user always sees most relevant nearby alerts
+   - Adapts to both sparse and dense alert scenarios
+   - No arbitrary distance cutoff
+
+5. **Accessibility Maintained**
+   - All ARIA labels and roles preserved
+   - Larger click/hover targets during interaction
+   - Multiple visual indicators (size, color, opacity)
+   - High contrast colors maintained
+
+**Files Modified:**
+- `styles.css`: Reduced marker sizes, hidden labels by default, enhanced hover/selected states
+- `app.js`: Added getAlertColorByRecency() function, updated filterAndUpdateAlerts() for 20 closest logic, modified marker creation to use recency colors
+- `docs/current_state/MARKER_REDESIGN_SUMMARY.md`: Comprehensive documentation of changes
+
+**Technical Details:**
+
+Marker Sizing:
+```css
+.marker-icon: 0.9em (was 1.6em)
+.triangle-marker: 1.1em (was 2em)
+Hover scale: 2.2x
+Selected scale: 2.5x
+```
+
+Auto-Zoom Algorithm:
+```javascript
+// Combine all alerts, sort by distance, take 20 closest
+const allAlertsWithDistance = [
+    ...cfaAlerts.map(a => ({ ...a, feedType: 'cfa' })),
+    ...emergencyIncidents.map(i => ({ ...i, feedType: 'emergency' }))
+].sort((a, b) => a.distance - b.distance);
+const closest20 = allAlertsWithDistance.slice(0, 20);
+```
+
+**Benefits:**
+- 45% smaller markers = clearer map view
+- Color-coding provides instant age recognition
+- Smart auto-zoom always shows 20 most relevant alerts
+- Progressive disclosure reduces cognitive load
+- Maintains full accessibility
+
+**Testing Needed:**
+- [ ] Screenshots for mobile, tablet, and desktop views
+- [ ] Color contrast verification
+- [ ] Touch target testing on mobile devices
+- [ ] Screen reader testing with hidden labels
+
 ### Radical Visual UI Uplift (January 2026)
 
 **Overview:** Complete visual redesign of the CFA Location Finder application to create a modern, fun, and engaging user experience with a firefighter theme.

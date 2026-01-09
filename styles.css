@@ -1012,6 +1012,12 @@ header p {
     animation: markerBounce 0.5s ease-in-out;
 }
 
+/* Show label on hover */
+.custom-marker:hover .marker-info {
+    opacity: 1;
+    transform: scale(1);
+}
+
 @keyframes markerBounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-8px); }
@@ -1020,6 +1026,12 @@ header p {
 .custom-marker.marker-selected {
     z-index: 1000 !important;
     animation: markerPulse 1.5s ease-in-out infinite;
+}
+
+/* Show label when selected */
+.custom-marker.marker-selected .marker-info {
+    opacity: 1;
+    transform: scale(1.1);
 }
 
 @keyframes markerPulse {
@@ -1033,7 +1045,7 @@ header p {
 
 /* CFA marker selection */
 .cfa-marker.marker-selected .marker-icon {
-    transform: scale(1.4);
+    transform: scale(2.5); /* Increased from 1.4 for better visibility when selected */
     filter: drop-shadow(0 0 12px rgba(52, 152, 219, 1));
 }
 
@@ -1046,7 +1058,7 @@ header p {
 
 /* Emergency marker selection */
 .emergency-marker.marker-selected .marker-icon {
-    transform: scale(1.4);
+    transform: scale(2.5); /* Increased from 1.4 for better visibility when selected */
     filter: drop-shadow(0 0 12px rgba(255, 68, 68, 1));
 }
 
@@ -1058,25 +1070,19 @@ header p {
 }
 
 .marker-icon {
-    font-size: 1.6em;
+    font-size: 0.9em; /* Reduced from 1.6em for smaller default footprint */
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     transition: all var(--transition-base);
-    animation: iconFloat 3s ease-in-out infinite;
     /* Prevent icon from interfering with click events - click handlers are on parent marker element */
     pointer-events: none;
 }
 
-@keyframes iconFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-3px); }
-}
-
 .triangle-marker {
-    font-size: 2em;
+    font-size: 1.1em; /* Reduced from 2em for smaller default */
 }
 
 .custom-marker:hover .marker-icon {
-    transform: scale(1.25) rotate(5deg);
+    transform: scale(2.2); /* Increased scale for better expansion on hover */
 }
 
 .marker-info {
@@ -1084,13 +1090,16 @@ header p {
     backdrop-filter: blur(10px);
     border: 2px solid var(--accent-primary);
     border-radius: var(--radius-sm);
-    padding: 4px 8px;
-    margin-top: 4px;
+    padding: 2px 6px; /* Reduced from 4px 8px for smaller default */
+    margin-top: 2px; /* Reduced from 4px */
     box-shadow: var(--shadow-sm);
-    min-width: 70px;
-    max-width: 110px;
+    min-width: 50px; /* Reduced from 70px */
+    max-width: 80px; /* Reduced from 110px */
     text-align: center;
     transition: all var(--transition-base);
+    /* Label hidden by default, shown on hover */
+    opacity: 0;
+    transform: scale(0.8);
     /* Prevent info box from interfering with click events - click handlers are on parent marker element */
     pointer-events: none;
 }
@@ -1102,26 +1111,26 @@ header p {
 .marker-location {
     font-weight: 700;
     color: var(--accent-primary);
-    font-size: 0.7rem;
+    font-size: 0.65rem; /* Reduced from 0.7rem for smaller default */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100px;
+    max-width: 75px; /* Reduced from 100px */
 }
 
 .marker-incident-name {
-    font-size: 0.65rem;
+    font-size: 0.6rem; /* Reduced from 0.65rem */
     color: var(--text-secondary);
     margin-top: 2px;
     font-style: italic;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100px;
+    max-width: 75px; /* Reduced from 100px */
 }
 
 .marker-time {
-    font-size: 0.65rem;
+    font-size: 0.6rem; /* Reduced from 0.65rem */
     color: var(--text-tertiary);
     margin-top: 2px;
     font-weight: 500;
