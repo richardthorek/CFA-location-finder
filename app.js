@@ -1,6 +1,7 @@
 // Configuration
 const CONFIG = {
-    // Default MapBox token - users should replace with their own
+    // IMPORTANT: Replace with your own MapBox token before production deployment
+    // This is a public demo token with rate limits - get your free token at https://account.mapbox.com/
     mapboxToken: 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw',
     // Center on Victoria, Australia
     mapCenter: [144.9631, -37.8136],

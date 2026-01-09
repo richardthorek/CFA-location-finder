@@ -1,3 +1,5 @@
+// Using node-fetch v2 for compatibility with CommonJS modules in Azure Functions
+// Note: Could migrate to native fetch API in Node.js 18+ or node-fetch v3 (ESM) in future
 const fetch = require('node-fetch');
 
 /**
@@ -141,7 +143,29 @@ function parseRSSFeed(xmlText) {
 
 /**
  * Strip HTML tags from text
+ * Uses multiple passes to ensure complete sanitization
  */
 function stripHTML(html) {
-    return html.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim();
+    // Remove all HTML tags (repeat to catch nested tags)
+    let text = html;
+    let prevText = '';
+    
+    // Keep replacing until no more tags found (handles nested/malformed tags)
+    while (text !== prevText) {
+        prevText = text;
+        text = text.replace(/<[^>]*>/g, '');
+    }
+    
+    // Decode HTML entities (decode &amp; last to avoid double-escaping issues)
+    text = text.replace(/&lt;/g, '<')
+               .replace(/&gt;/g, '>')
+               .replace(/&quot;/g, '"')
+               .replace(/&#39;/g, "'")
+               .replace(/&[^;]+;/g, ' ')  // Replace other entities with space
+               .replace(/&amp;/g, '&');    // Decode &amp; last
+    
+    // Remove any remaining < or > characters for safety
+    text = text.replace(/[<>]/g, '');
+    
+    return text.trim();
 }
