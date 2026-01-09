@@ -43,21 +43,29 @@ npm install
 cd ..
 ```
 
-3. Configure MapBox Token
+3. Configure Environment Variables
 
-Edit `app.js` and replace the MapBox token:
-```javascript
-const CONFIG = {
-    mapboxToken: 'YOUR_MAPBOX_TOKEN_HERE',
-    // ...
-};
+For local development, create a `local.settings.json` file in the `api` directory:
+```bash
+cd api
+cat > local.settings.json << 'EOF'
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "MAPBOX_TOKEN": "YOUR_MAPBOX_TOKEN_HERE"
+  }
+}
+EOF
+cd ..
 ```
 
-Get a free token at: https://account.mapbox.com/
+Get a free MapBox token at: https://account.mapbox.com/access-tokens/
+
+**Note**: `local.settings.json` is gitignored and should never be committed to the repository.
 
 4. Run locally
-
-You can open `index.html` directly in a browser for frontend development. The app includes mock data that will be used when the API is not available.
 
 To test with Azure Functions locally:
 ```bash
@@ -65,7 +73,7 @@ cd api
 npm start
 ```
 
-Then open `index.html` in a browser.
+Then open `index.html` in a browser. The app will fetch the configuration including the MapBox token from the API.
 
 ## Environment Variables
 
@@ -73,21 +81,34 @@ This application uses the following environment variables and configuration:
 
 ### Required Variables
 
-#### MAPBOX_TOKEN (Frontend Configuration)
+#### MAPBOX_TOKEN (Backend Environment Variable)
 
 **Purpose**: API token for MapBox mapping and geocoding services
 
 **How to configure**:
-1. Get a free token at: https://account.mapbox.com/
-2. Edit `app.js` and replace the token in the CONFIG object:
-   ```javascript
-   const CONFIG = {
-       mapboxToken: 'YOUR_MAPBOX_TOKEN_HERE',
-       // ...
-   };
+
+**Local Development:**
+1. Get a free token at: https://account.mapbox.com/access-tokens/
+2. Create `api/local.settings.json` (this file is gitignored):
+   ```json
+   {
+     "IsEncrypted": false,
+     "Values": {
+       "AzureWebJobsStorage": "",
+       "FUNCTIONS_WORKER_RUNTIME": "node",
+       "MAPBOX_TOKEN": "YOUR_MAPBOX_TOKEN_HERE"
+     }
+   }
    ```
 
-**Default**: The repository includes a public demo token with rate limits. Replace it with your own token for production use.
+**Azure Production:**
+1. In Azure Portal, navigate to your Static Web App
+2. Go to Configuration → Application settings
+3. Add a new setting:
+   - Name: `MAPBOX_TOKEN`
+   - Value: Your MapBox token from https://account.mapbox.com/access-tokens/
+
+**Security**: The token is now securely stored as an environment variable and served through the `/api/getConfig` endpoint. It is never hardcoded in the frontend code.
 
 **MapBox Free Tier Limits**:
 - 50,000 map loads per month
