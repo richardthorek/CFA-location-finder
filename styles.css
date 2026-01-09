@@ -151,6 +151,7 @@ header p {
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.3s;
+    position: relative;
 }
 
 .alert-item:hover {
@@ -164,9 +165,43 @@ header p {
     box-shadow: 0 2px 8px rgba(211, 47, 47, 0.2);
 }
 
+.alert-warning-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.75em;
+    font-weight: bold;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    border: 1px solid #000;  /* Black outline as per guidelines */
+}
+
+/* Australian Warning System official colors with proper text colors */
+.alert-item[data-warning-level="advice"] .alert-warning-badge {
+    background-color: #FBE032;  /* Hazard Yellow */
+    color: #000;  /* Black text for yellow tier */
+}
+
+.alert-item[data-warning-level="watchAndAct"] .alert-warning-badge {
+    background-color: #FF7900;  /* Hazard Orange */
+    color: #000;  /* Black text for orange tier */
+}
+
+.alert-item[data-warning-level="emergency"] .alert-warning-badge {
+    background-color: #D6001C;  /* Hazard Red */
+    color: #fff;  /* White text for red tier */
+}
+
 .alert-location {
     font-weight: bold;
     color: #d32f2f;
+    margin-bottom: 5px;
+}
+
+.alert-incident-name {
+    font-size: 0.75em;
+    color: #666;
+    font-style: italic;
     margin-bottom: 5px;
 }
 
@@ -276,6 +311,17 @@ header p {
     font-weight: bold;
     color: #d32f2f;
     font-size: 0.85em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.marker-incident-name {
+    font-size: 0.65em;
+    color: #666;
+    margin-top: 2px;
+    font-style: italic;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
