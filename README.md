@@ -12,7 +12,7 @@ A real-time fire alert map for Victoria, Australia. This application displays Co
 - 🔄 Real-time feed updates from CFA
 - ⏱️ Auto-refresh every 1 minute
 - 📍 Automatic location parsing and geocoding
-- 🚒 Alert details with timestamps
+- 📟 Alert details with timestamps
 - 📱 Responsive design for mobile and desktop
 
 ## Architecture
