@@ -30,3 +30,6 @@ local.settings.json
 
 # Azure
 .azure/
+
+# Test files
+ui-test.html

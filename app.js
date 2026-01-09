@@ -21,6 +21,53 @@ let userMarker = null;
 let autoZoomEnabled = true; // Track if auto-zoom is enabled
 let alertToMarkerMap = new Map(); // Maps alert global index to marker
 
+// Theme Management
+function initTheme() {
+    // Check for saved theme preference or default to light mode
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeButton(savedTheme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeButton(newTheme);
+    
+    // Update map style for dark/light mode
+    if (map) {
+        const mapStyle = newTheme === 'dark' 
+            ? 'mapbox://styles/mapbox/dark-v11' 
+            : 'mapbox://styles/mapbox/streets-v11';
+        map.setStyle(mapStyle);
+        
+        // Re-add markers after style change
+        setTimeout(() => {
+            updateMapWithSeparateFeeds();
+        }, 1000);
+    }
+}
+
+function updateThemeButton(theme) {
+    const themeIcon = document.getElementById('themeIcon');
+    const themeToggle = document.getElementById('themeToggle');
+    
+    if (theme === 'dark') {
+        themeIcon.textContent = '☀️';
+        themeToggle.setAttribute('aria-label', 'Switch to light mode');
+        const span = themeToggle.querySelector('span:last-child');
+        if (span) span.textContent = 'Light Mode';
+    } else {
+        themeIcon.textContent = '🌙';
+        themeToggle.setAttribute('aria-label', 'Switch to dark mode');
+        const span = themeToggle.querySelector('span:last-child');
+        if (span) span.textContent = 'Dark Mode';
+    }
+}
+
 /**
  * Get warning level styling based on Australian Warning System official colors
  * Uses official National Framework hazard colors and design guidelines
@@ -79,6 +126,9 @@ async function loadConfig() {
 
 // Initialize the application
 async function init() {
+    // Initialize theme first
+    initTheme();
+    
     // Load configuration first
     await loadConfig();
     
@@ -96,9 +146,15 @@ async function init() {
 function initMap() {
     mapboxgl.accessToken = CONFIG.mapboxToken;
     
+    // Use dark or light style based on current theme
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const mapStyle = currentTheme === 'dark' 
+        ? 'mapbox://styles/mapbox/dark-v11' 
+        : 'mapbox://styles/mapbox/streets-v11';
+    
     map = new mapboxgl.Map({
         container: 'map',
-        style: 'mapbox://styles/mapbox/streets-v11',
+        style: mapStyle,
         center: CONFIG.mapCenter,
         zoom: CONFIG.mapZoom
     });
@@ -115,6 +171,43 @@ function setupEventListeners() {
     // Toggle button for auto-zoom
     document.getElementById('locateBtn').addEventListener('click', () => {
         toggleAutoZoom();
+    });
+    
+    // Theme toggle button
+    document.getElementById('themeToggle').addEventListener('click', () => {
+        toggleTheme();
+    });
+    
+    // Keyboard navigation for alert cards and interactive elements
+    document.addEventListener('keydown', (e) => {
+        // Escape key - clear selection
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.alert-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            document.querySelectorAll('.custom-marker').forEach(marker => {
+                marker.classList.remove('marker-selected');
+            });
+        }
+        
+        // Enter or Space on alert cards
+        if (e.key === 'Enter' || e.key === ' ') {
+            const focusedElement = document.activeElement;
+            
+            // Check if focused element is an alert card
+            if (focusedElement && focusedElement.classList.contains('alert-item')) {
+                e.preventDefault(); // Prevent space from scrolling
+                
+                const alertId = parseInt(focusedElement.getAttribute('data-alert-id'));
+                const feedType = focusedElement.getAttribute('data-feed-type');
+                
+                if (feedType === 'cfa') {
+                    selectCFAAlert(alertId);
+                } else if (feedType === 'emergency') {
+                    selectEmergencyIncident(alertId);
+                }
+            }
+        }
     });
 }
 
@@ -572,7 +665,7 @@ function displayCFAAlerts(alertsToDisplay) {
     
     if (alertsToDisplay.length === 0) {
         const noAlertsMsg = 'No CFA pager alerts at this time';
-        alertsList.innerHTML = `<div class="no-alerts">${noAlertsMsg}</div>`;
+        alertsList.innerHTML = `<div class="no-alerts" role="status">${noAlertsMsg}</div>`;
         return;
     }
     
@@ -583,8 +676,14 @@ function displayCFAAlerts(alertsToDisplay) {
         }
         
         return `
-            <div class="alert-item cfa-alert" data-alert-id="${index}" data-feed-type="cfa" onclick="selectCFAAlert(${index})">
-                <div class="alert-icon pager-icon">📟</div>
+            <div class="alert-item cfa-alert" 
+                 data-alert-id="${index}" 
+                 data-feed-type="cfa" 
+                 onclick="selectCFAAlert(${index})"
+                 role="listitem"
+                 tabindex="0"
+                 aria-label="CFA alert at ${alert.location || 'unknown location'}">
+                <div class="alert-icon pager-icon" aria-hidden="true">📟</div>
                 <div class="alert-content">
                     <div class="alert-location">${alert.location || 'Location Unknown'}</div>
                     <div class="alert-message">${alert.message}</div>
@@ -630,8 +729,16 @@ function displayEmergencyIncidents(incidentsToDisplay) {
         const sourceBadge = `<span class="source-badge source-${sourceLabel.toLowerCase()}">${sourceLabel}</span>`;
         
         return `
-            <div class="alert-item emergency-incident" data-alert-id="${index}" data-feed-type="emergency" data-warning-level="${warningLevel}" onclick="selectEmergencyIncident(${index})" style="border-left-color: ${warningStyle.color};">
-                <div class="alert-icon triangle-icon" style="color: ${warningStyle.color};">▲</div>
+            <div class="alert-item emergency-incident" 
+                 data-alert-id="${index}" 
+                 data-feed-type="emergency" 
+                 data-warning-level="${warningLevel}" 
+                 onclick="selectEmergencyIncident(${index})"
+                 role="listitem"
+                 tabindex="0"
+                 aria-label="Emergency incident, ${warningStyle.label}, at ${incident.location || 'unknown location'}"
+                 style="border-left-color: ${warningStyle.color};">
+                <div class="alert-icon triangle-icon" style="color: ${warningStyle.color};" aria-hidden="true">▲</div>
                 <div class="alert-content">
                     <div class="alert-warning-badge">${warningStyle.label} ${sourceBadge}</div>
                     <div class="alert-location" style="color: ${warningStyle.color};">${incident.location || 'Location Unknown'}</div>

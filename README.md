@@ -1,6 +1,28 @@
 # CFA Location Finder
 
+> **✨ New in Version 2.0:** Radical visual UI uplift with modern design, dark mode, and delightful animations!
+
 A real-time fire alert map for Victoria, Australia. This application displays Country Fire Authority (CFA) alerts on an interactive map using the MapBox API.
+
+## 🎨 Design Highlights
+
+### Modern & Engaging Interface
+- **Firefighter Theme**: Flame gradient header with ember particle effects
+- **Dark Mode**: One-click toggle for comfortable viewing in any environment
+- **Glassmorphism**: Modern frosted-glass effects throughout
+- **Microinteractions**: Delightful animations on every interaction
+- **Accessibility-First**: WCAG AA compliant with keyboard navigation
+
+### Visual Features
+- 🔥 Animated flame gradient header
+- 🌙 Complete dark mode support
+- ✨ Smooth transitions and animations
+- 📱 Fully responsive design
+- 🎯 Enhanced alert cards with color-coding
+- 🗺️ Custom animated map markers
+- 💫 Glassmorphism popups and controls
+
+See [NEW_DESIGN_OVERVIEW.md](docs/current_state/images/NEW_DESIGN_OVERVIEW.md) for complete design documentation.
 
 ## Features
 
