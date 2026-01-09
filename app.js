@@ -222,6 +222,7 @@ async function loadAlerts() {
     try {
         // Fetch CFA alerts (Primary feed)
         try {
+            console.log('Fetching CFA pager alerts...');
             const response = await fetch(CONFIG.apiEndpoint);
             if (response.ok) {
                 const cfaAlertsData = await response.json();
@@ -240,6 +241,10 @@ async function loadAlerts() {
                 
                 // Limit to 30 most recent CFA alerts
                 cfaAlerts = cfaAlerts.slice(0, 30);
+                console.log(`✓ Loaded ${cfaAlerts.length} CFA pager alerts`);
+            } else {
+                console.warn(`CFA API returned status: ${response.status}`);
+                cfaAlerts = [];
             }
         } catch (cfaError) {
             console.warn('CFA API not available:', cfaError);
@@ -248,12 +253,18 @@ async function loadAlerts() {
         
         // Fetch Emergency Victoria incidents (Secondary feed)
         try {
+            console.log('Fetching Emergency VIC and NSW RFS incidents...');
             const response = await fetch('/api/getEmergencyFeed');
             if (response.ok) {
                 const emergencyIncidentsData = await response.json();
                 // Process Emergency incidents - these have warning levels
                 // Note: source property (VIC or NSW) is already set by the API
                 emergencyIncidents = emergencyIncidentsData;
+                
+                // Count by source
+                const vicCount = emergencyIncidents.filter(i => i.source === 'VIC').length;
+                const nswCount = emergencyIncidents.filter(i => i.source === 'NSW').length;
+                console.log(`✓ Loaded ${emergencyIncidents.length} emergency incidents (VIC: ${vicCount}, NSW: ${nswCount})`);
                 
                 // Sort by timestamp (most recent first)
                 emergencyIncidents.sort((a, b) => {
@@ -264,6 +275,9 @@ async function loadAlerts() {
                 
                 // Limit to 20 most recent Emergency incidents
                 emergencyIncidents = emergencyIncidents.slice(0, 20);
+            } else {
+                console.warn(`Emergency API returned status: ${response.status}`);
+                emergencyIncidents = [];
             }
         } catch (emergencyError) {
             console.warn('Emergency API not available:', emergencyError);
@@ -712,6 +726,11 @@ function displayEmergencyIncidents(incidentsToDisplay) {
         return;
     }
     
+    // Count by source for debugging
+    const vicCount = incidentsToDisplay.filter(i => i.source === 'VIC').length;
+    const nswCount = incidentsToDisplay.filter(i => i.source === 'NSW').length;
+    console.log(`Displaying ${vicCount} VIC incidents and ${nswCount} NSW incidents`);
+    
     incidentsList.innerHTML = incidentsToDisplay.map((incident, index) => {
         // Get warning level styling
         const warningLevel = incident.warningLevel || 'advice';
@@ -731,9 +750,10 @@ function displayEmergencyIncidents(incidentsToDisplay) {
             incidentNameHtml = `<div class="alert-incident-name">${incident.incidentName}</div>`;
         }
         
-        // Add source badge
+        // Add source badge with agency info
         const sourceLabel = incident.source === 'NSW' ? 'NSW' : 'VIC';
-        const sourceBadge = `<span class="source-badge source-${sourceLabel.toLowerCase()}">${sourceLabel}</span>`;
+        const agencyInfo = incident.agency || 'Unknown';
+        const sourceBadge = `<span class="source-badge source-${sourceLabel.toLowerCase()}" title="${agencyInfo}">${sourceLabel}</span>`;
         
         return `
             <div class="alert-item emergency-incident" 
