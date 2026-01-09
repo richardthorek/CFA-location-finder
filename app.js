@@ -19,6 +19,30 @@ let userMarker = null;
 let autoZoomEnabled = true; // Track if auto-zoom is enabled
 let alertToMarkerMap = new Map(); // Maps alert global index to marker
 
+/**
+ * Get warning level styling based on Australian Warning System standards
+ * @param {string} warningLevel - 'advice', 'watchAndAct', or 'emergency'
+ * @returns {object} Style object with color and label
+ */
+function getWarningStyle(warningLevel) {
+    const styles = {
+        advice: {
+            color: '#FFD700',  // Yellow
+            label: 'Advice'
+        },
+        watchAndAct: {
+            color: '#FF8C00',  // Orange
+            label: 'Watch and Act'
+        },
+        emergency: {
+            color: '#DC143C',  // Red
+            label: 'Emergency Warning'
+        }
+    };
+    
+    return styles[warningLevel] || styles.advice;
+}
+
 // Load configuration from API
 async function loadConfig() {
     try {
@@ -94,14 +118,43 @@ async function loadAlerts() {
     refreshBtn.disabled = true;
     
     try {
-        // Try to fetch from Azure Function first, fallback to mock data
-        let alertsData;
+        // Fetch from both CFA feed and Emergency feed
+        let alertsData = [];
+        
+        // Fetch CFA alerts
         try {
             const response = await fetch(CONFIG.apiEndpoint);
-            if (!response.ok) throw new Error('API not available');
-            alertsData = await response.json();
-        } catch (apiError) {
-            console.warn('API not available, using mock data:', apiError);
+            if (response.ok) {
+                const cfaAlerts = await response.json();
+                // Mark CFA alerts as such and set default warning level
+                cfaAlerts.forEach(alert => {
+                    alert.source = 'CFA';
+                    alert.warningLevel = alert.warningLevel || 'advice';
+                });
+                alertsData = alertsData.concat(cfaAlerts);
+            }
+        } catch (cfaError) {
+            console.warn('CFA API not available:', cfaError);
+        }
+        
+        // Fetch Emergency Victoria incidents
+        try {
+            const response = await fetch('/api/getEmergencyFeed');
+            if (response.ok) {
+                const emergencyIncidents = await response.json();
+                // Mark emergency incidents as such
+                emergencyIncidents.forEach(incident => {
+                    incident.source = 'Emergency';
+                });
+                alertsData = alertsData.concat(emergencyIncidents);
+            }
+        } catch (emergencyError) {
+            console.warn('Emergency API not available:', emergencyError);
+        }
+        
+        // If both APIs failed, use mock data
+        if (alertsData.length === 0) {
+            console.warn('Both APIs unavailable, using mock data');
             alertsData = getMockAlerts();
         }
         
@@ -112,8 +165,8 @@ async function loadAlerts() {
             return timeB - timeA;
         });
         
-        // Limit to 20 most recent alerts
-        alerts = alertsData.slice(0, 20);
+        // Limit to 50 most recent alerts (increased to accommodate both feeds)
+        alerts = alertsData.slice(0, 50);
         displayAlerts(alerts);
         updateMap(alerts);
         updateLastUpdate();
@@ -543,14 +596,26 @@ function displayAlerts(alertsToDisplay) {
         // Find the original index in the global alerts array
         const originalIndex = alerts.indexOf(alert);
         
+        // Get warning level styling
+        const warningLevel = alert.warningLevel || 'advice';
+        const warningStyle = getWarningStyle(warningLevel);
+        
         let distanceHtml = '';
         if (alert.distance !== undefined) {
             distanceHtml = `<div class="alert-distance">📍 ${alert.distance.toFixed(1)} km away (straight line)</div>`;
         }
         
+        // Add incident name if available
+        let incidentNameHtml = '';
+        if (alert.incidentName) {
+            incidentNameHtml = `<div class="alert-incident-name">${alert.incidentName}</div>`;
+        }
+        
         return `
-            <div class="alert-item" data-alert-id="${originalIndex}" onclick="selectAlert(${originalIndex})">
-                <div class="alert-location">${alert.location || 'Location Unknown'}</div>
+            <div class="alert-item" data-alert-id="${originalIndex}" data-warning-level="${warningLevel}" onclick="selectAlert(${originalIndex})" style="border-left-color: ${warningStyle.color};">
+                <div class="alert-warning-badge" style="background-color: ${warningStyle.color};">${warningStyle.label}</div>
+                <div class="alert-location" style="color: ${warningStyle.color};">${alert.location || 'Location Unknown'}</div>
+                ${incidentNameHtml}
                 <div class="alert-message">${alert.message}</div>
                 <div class="alert-time">${formatTime(alert.timestamp)}</div>
                 ${distanceHtml}
@@ -586,12 +651,17 @@ async function updateMap(alertsToShow) {
             // Find the global index of this alert in the main alerts array
             const globalIndex = alerts.indexOf(alert);
             
+            // Determine warning level and get appropriate styling
+            const warningLevel = alert.warningLevel || 'advice';
+            const warningStyle = getWarningStyle(warningLevel);
+            
             // Create custom marker element
             const markerEl = document.createElement('div');
             markerEl.className = 'custom-marker';
             markerEl.setAttribute('role', 'button');
             markerEl.setAttribute('aria-label', `Fire alert at ${alert.location || 'unknown location'}`);
             markerEl.setAttribute('data-alert-index', globalIndex);
+            markerEl.setAttribute('data-warning-level', warningLevel);
             
             // Create marker icon
             const iconDiv = document.createElement('div');
@@ -602,20 +672,32 @@ async function updateMap(alertsToShow) {
             // Create marker info container
             const infoDiv = document.createElement('div');
             infoDiv.className = 'marker-info';
+            infoDiv.style.borderColor = warningStyle.color;
             
             // Create location text (textContent automatically escapes HTML)
             const locationDiv = document.createElement('div');
             locationDiv.className = 'marker-location';
+            locationDiv.style.color = warningStyle.color;
             locationDiv.textContent = alert.location || 'Unknown';
+            
+            // Create incident name in small font below location
+            if (alert.incidentName) {
+                const incidentNameDiv = document.createElement('div');
+                incidentNameDiv.className = 'marker-incident-name';
+                incidentNameDiv.textContent = alert.incidentName;
+                infoDiv.appendChild(locationDiv);
+                infoDiv.appendChild(incidentNameDiv);
+            } else {
+                infoDiv.appendChild(locationDiv);
+            }
             
             // Create time text
             const timeDiv = document.createElement('div');
             timeDiv.className = 'marker-time';
             timeDiv.textContent = formatTime(alert.timestamp);
+            infoDiv.appendChild(timeDiv);
             
             // Assemble the marker
-            infoDiv.appendChild(locationDiv);
-            infoDiv.appendChild(timeDiv);
             markerEl.appendChild(iconDiv);
             markerEl.appendChild(infoDiv);
             
