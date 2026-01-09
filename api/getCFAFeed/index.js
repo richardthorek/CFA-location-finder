@@ -59,86 +59,128 @@ module.exports = async function (context, req) {
 
 /**
  * Parse CFA feed data
- * The feed format may vary - this handles common formats
+ * The actual feed is an HTML table with alerts
  */
 function parseCFAFeed(feedText) {
     const alerts = [];
+    const seenIncidents = new Set();
     
-    try {
-        // Check if it's JSON
-        const jsonData = JSON.parse(feedText);
-        if (Array.isArray(jsonData)) {
-            return jsonData.map(item => ({
-                message: item.message || item.text || item.description || '',
-                timestamp: item.timestamp || item.time || item.date || new Date().toISOString(),
-                location: item.location || null,
-                coordinates: item.coordinates || null
-            }));
-        }
-    } catch (e) {
-        // Not JSON, continue with other parsing methods
-    }
-
-    // Try parsing as RSS/XML
-    if (feedText.includes('<rss') || feedText.includes('<feed')) {
-        return parseRSSFeed(feedText);
-    }
-
-    // Try parsing as plain text (line-by-line)
-    const lines = feedText.split('\n').filter(line => line.trim().length > 0);
+    // Parse HTML table rows: <tr><td class='capcode'>...</td><td class='timestamp'>...</td><td>...</td></tr>
+    const rowRegex = /<tr><td class='capcode'>([^<]*)<\/td><td class='timestamp'>([^<]*)<\/td><td>([\s\S]*?)<\/td><\/tr>/gi;
     
-    for (const line of lines) {
-        // Skip headers or empty lines
-        if (line.length < 10) continue;
+    let match;
+    while ((match = rowRegex.exec(feedText)) !== null) {
+        const capcode = match[1].trim();
+        const timestamp = match[2].trim();
+        const messageHtml = match[3];
         
-        // Each line is an alert message
+        // Extract the text content from the span, removing HTML tags
+        const message = stripHTML(messageHtml);
+        
+        // Skip non-alert messages (warnings, status updates without @@ALERT or Hb status)
+        if (!message.includes('@@ALERT')) {
+            continue;
+        }
+        
+        // Skip warning messages about scraping
+        if (message.includes('STOP SCRAPING')) {
+            continue;
+        }
+        
+        // Extract incident number to avoid duplicates
+        const incidentMatch = message.match(/F\d{9}/);
+        const incidentId = incidentMatch ? incidentMatch[0] : null;
+        
+        // Skip duplicate incidents (same incident dispatched to multiple units)
+        if (incidentId && seenIncidents.has(incidentId)) {
+            continue;
+        }
+        
+        if (incidentId) {
+            seenIncidents.add(incidentId);
+        }
+        
+        // Parse timestamp: "HH:MM:SS YYYY-MM-DD"
+        const timestampISO = parseTimestamp(timestamp);
+        
+        // Extract location from message
+        const location = extractLocation(message);
+        
         alerts.push({
-            message: line.trim(),
-            timestamp: new Date().toISOString(),
-            location: null,
-            coordinates: null
+            message: message.replace('@@ALERT ', '').trim(),
+            timestamp: timestampISO,
+            location: location,
+            coordinates: null,
+            incidentId: incidentId,
+            capcode: capcode
         });
     }
-
+    
     return alerts;
 }
 
 /**
- * Parse RSS/XML feed
+ * Parse CFA timestamp format: "HH:MM:SS YYYY-MM-DD"
  */
-function parseRSSFeed(xmlText) {
-    const alerts = [];
+function parseTimestamp(timestamp) {
+    try {
+        const parts = timestamp.split(' ');
+        if (parts.length === 2) {
+            const time = parts[0];
+            const date = parts[1];
+            return new Date(`${date}T${time}Z`).toISOString();
+        }
+    } catch (e) {
+        // Fallback to current time
+    }
+    return new Date().toISOString();
+}
+
+/**
+ * Extract location from CFA message
+ * Format varies: [TYPE] [ADDRESS] [LOCATION] /[ROAD1] //[ROAD2] [AREA_CODE]
+ */
+function extractLocation(message) {
+    // Remove @@ALERT prefix if present
+    const cleanMessage = message.replace('@@ALERT ', '');
     
-    // Simple regex-based XML parsing (for basic RSS feeds)
-    // In production, use a proper XML parser
-    const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
-    const titleRegex = /<title[^>]*>([\s\S]*?)<\/title>/i;
-    const descRegex = /<description[^>]*>([\s\S]*?)<\/description>/i;
-    const dateRegex = /<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i;
-    
-    let match;
-    while ((match = itemRegex.exec(xmlText)) !== null) {
-        const itemContent = match[1];
+    // Try to extract street address and suburb
+    // Pattern: "NUMBER STREET_NAME SUBURB /CROSS_ST1 //CROSS_ST2"
+    const addressMatch = cleanMessage.match(/\d+\s+([A-Z][A-Za-z\s]+?)\s+([A-Z][A-Z\s]+?)\s+\//);
+    if (addressMatch) {
+        const street = addressMatch[1].trim();
+        const suburb = addressMatch[2].trim();
         
-        const titleMatch = titleRegex.exec(itemContent);
-        const descMatch = descRegex.exec(itemContent);
-        const dateMatch = dateRegex.exec(itemContent);
-        
-        const title = titleMatch ? stripHTML(titleMatch[1]) : '';
-        const description = descMatch ? stripHTML(descMatch[1]) : '';
-        const message = `${title} ${description}`.trim();
-        
-        if (message) {
-            alerts.push({
-                message: message,
-                timestamp: dateMatch ? new Date(dateMatch[1]).toISOString() : new Date().toISOString(),
-                location: null,
-                coordinates: null
-            });
+        // Filter out fire types
+        if (!suburb.match(/^(FIRE|GRASS|HOUSE|BATTERY|STRUCTURE|VEHICLE|UNDEFINED|SPREADING)/)) {
+            return `${street}, ${suburb}`;
         }
     }
     
-    return alerts;
+    // Pattern: "ROAD_NAME SUBURB /CROSS_ST1"
+    const roadMatch = cleanMessage.match(/([A-Z][A-Za-z\s-]+?)\s+RD\s+([A-Z][A-Z\s]+?)\s+\//);
+    if (roadMatch) {
+        const road = roadMatch[1].trim();
+        const suburb = roadMatch[2].trim();
+        return `${road} Rd, ${suburb}`;
+    }
+    
+    // Pattern: Extract suburb name before "/" or area code patterns
+    const suburbMatch = cleanMessage.match(/\b([A-Z][A-Z\s]{4,25}?)\s+(?:\/|SV[A-Z]+|M\s+\d)/);
+    if (suburbMatch) {
+        const suburb = suburbMatch[1].trim();
+        
+        // Filter out fire types and common non-location words
+        if (!suburb.match(/^(FIRE|GRASS|HOUSE|BATTERY|STRUCTURE|VEHICLE|UNDEFINED|SPREADING|INCIDENT|STRIKE|TEAM|CODE|TANKER|REQUIRED|ASSEMBLE)/)) {
+            // Further clean up by removing trailing single letters or numbers
+            const cleaned = suburb.replace(/\s+[A-Z]\d*$/, '').trim();
+            if (cleaned.length >= 4) {
+                return cleaned;
+            }
+        }
+    }
+    
+    return null;
 }
 
 /**
