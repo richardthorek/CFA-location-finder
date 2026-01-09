@@ -178,16 +178,35 @@ function setupEventListeners() {
         toggleTheme();
     });
     
-    // Keyboard navigation for alert cards
+    // Keyboard navigation for alert cards and interactive elements
     document.addEventListener('keydown', (e) => {
+        // Escape key - clear selection
         if (e.key === 'Escape') {
-            // Clear selection on Escape
             document.querySelectorAll('.alert-item').forEach(item => {
                 item.classList.remove('selected');
             });
             document.querySelectorAll('.custom-marker').forEach(marker => {
                 marker.classList.remove('marker-selected');
             });
+        }
+        
+        // Enter or Space on alert cards
+        if (e.key === 'Enter' || e.key === ' ') {
+            const focusedElement = document.activeElement;
+            
+            // Check if focused element is an alert card
+            if (focusedElement && focusedElement.classList.contains('alert-item')) {
+                e.preventDefault(); // Prevent space from scrolling
+                
+                const alertId = parseInt(focusedElement.getAttribute('data-alert-id'));
+                const feedType = focusedElement.getAttribute('data-feed-type');
+                
+                if (feedType === 'cfa') {
+                    selectCFAAlert(alertId);
+                } else if (feedType === 'emergency') {
+                    selectEmergencyIncident(alertId);
+                }
+            }
         }
     });
 }
@@ -665,7 +684,6 @@ function displayCFAAlerts(alertsToDisplay) {
                  onclick="selectCFAAlert(${index})"
                  role="listitem"
                  tabindex="0"
-                 onkeypress="if(event.key==='Enter'||event.key===' '){selectCFAAlert(${index})}"
                  aria-label="CFA alert at ${alert.location || 'unknown location'}">
                 <div class="alert-icon pager-icon" aria-hidden="true">📟</div>
                 <div class="alert-content">
@@ -720,7 +738,6 @@ function displayEmergencyIncidents(incidentsToDisplay) {
                  onclick="selectEmergencyIncident(${index})"
                  role="listitem"
                  tabindex="0"
-                 onkeypress="if(event.key==='Enter'||event.key===' '){selectEmergencyIncident(${index})}"
                  aria-label="Emergency incident, ${warningStyle.label}, at ${incident.location || 'unknown location'}"
                  style="border-left-color: ${warningStyle.color};">
                 <div class="alert-icon triangle-icon" style="color: ${warningStyle.color};" aria-hidden="true">▲</div>
