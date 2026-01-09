@@ -15,47 +15,87 @@ module.exports = async function (context, req) {
     try {
         let allIncidents = [];
         
-        // Fetch Emergency Victoria RSS feed
+        // Fetch Emergency Victoria RSS feed (includes CFA current incidents)
         try {
+            context.log('Fetching Emergency VIC feed from:', EMERGENCY_VIC_FEED_URL);
             const vicResponse = await fetch(EMERGENCY_VIC_FEED_URL, {
                 headers: {
-                    'User-Agent': 'CFA-Location-Finder/1.0'
+                    'User-Agent': 'CFA-Location-Finder/1.0',
+                    'Accept': 'application/rss+xml, application/xml, text/xml, */*'
                 },
-                timeout: 10000
+                timeout: 15000 // Increased timeout to 15 seconds
             });
+
+            context.log(`Emergency VIC response status: ${vicResponse.status}`);
 
             if (vicResponse.ok) {
                 const vicFeedText = await vicResponse.text();
+                context.log(`Emergency VIC feed length: ${vicFeedText.length} characters`);
+                
+                // Log first 500 chars to debug format issues
+                if (vicFeedText.length > 0) {
+                    context.log('Emergency VIC feed preview:', vicFeedText.substring(0, 500));
+                }
+                
                 const vicIncidents = parseEmergencyVicFeed(vicFeedText);
+                
+                // Filter for CFA incidents specifically
+                const cfaIncidents = vicIncidents.filter(incident => {
+                    const agency = (incident.agency || '').toUpperCase();
+                    return agency.includes('CFA') || agency.includes('COUNTRY FIRE');
+                });
+                
+                context.log(`Parsed ${vicIncidents.length} total incidents from Emergency VIC`);
+                context.log(`Found ${cfaIncidents.length} CFA-specific incidents`);
+                
                 allIncidents = allIncidents.concat(vicIncidents);
-                context.log(`Fetched ${vicIncidents.length} incidents from Emergency VIC`);
             } else {
                 context.log.warn(`Emergency VIC feed returned status: ${vicResponse.status}`);
+                const errorText = await vicResponse.text();
+                context.log.warn('Emergency VIC error response:', errorText.substring(0, 500));
             }
         } catch (vicError) {
-            context.log.error('Error fetching Emergency VIC feed:', vicError);
+            context.log.error('Error fetching Emergency VIC feed:', vicError.message);
+            context.log.error('VIC Error stack:', vicError.stack);
         }
 
         // Fetch NSW RFS RSS feed
         try {
+            context.log('Fetching NSW RFS feed from:', NSW_RFS_FEED_URL);
             const nswResponse = await fetch(NSW_RFS_FEED_URL, {
                 headers: {
-                    'User-Agent': 'CFA-Location-Finder/1.0'
+                    'User-Agent': 'CFA-Location-Finder/1.0',
+                    'Accept': 'application/rss+xml, application/xml, text/xml, */*'
                 },
-                timeout: 10000
+                timeout: 15000 // Increased timeout
             });
+
+            context.log(`NSW RFS response status: ${nswResponse.status}`);
 
             if (nswResponse.ok) {
                 const nswFeedText = await nswResponse.text();
+                context.log(`NSW RFS feed length: ${nswFeedText.length} characters`);
+                
                 const nswIncidents = parseNSWRFSFeed(nswFeedText);
                 allIncidents = allIncidents.concat(nswIncidents);
                 context.log(`Fetched ${nswIncidents.length} incidents from NSW RFS`);
             } else {
                 context.log.warn(`NSW RFS feed returned status: ${nswResponse.status}`);
+                const errorText = await nswResponse.text();
+                context.log.warn('NSW RFS error response:', errorText.substring(0, 500));
             }
         } catch (nswError) {
-            context.log.error('Error fetching NSW RFS feed:', nswError);
+            context.log.error('Error fetching NSW RFS feed:', nswError.message);
+            context.log.error('NSW Error stack:', nswError.stack);
         }
+
+        // Log final results
+        context.log(`Total incidents parsed: ${allIncidents.length}`);
+        
+        // Count by source
+        const cfaCount = allIncidents.filter(i => i.source === 'VIC').length;
+        const nswCount = allIncidents.filter(i => i.source === 'NSW').length;
+        context.log(`CFA/VIC incidents: ${cfaCount}, NSW incidents: ${nswCount}`);
 
         // If no incidents from either feed, return empty array
         if (allIncidents.length === 0) {
@@ -108,51 +148,72 @@ module.exports = async function (context, req) {
 function parseEmergencyVicFeed(feedText) {
     const incidents = [];
     
+    // Check if feed is empty or invalid
+    if (!feedText || feedText.trim().length === 0) {
+        console.warn('Emergency VIC feed is empty');
+        return incidents;
+    }
+    
+    // Check if it's actually XML/RSS
+    if (!feedText.includes('<rss') && !feedText.includes('<feed')) {
+        console.warn('Emergency VIC feed does not appear to be RSS/XML format');
+        return incidents;
+    }
+    
     // Extract all <item> elements
     const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
     
     let match;
+    let itemCount = 0;
     while ((match = itemRegex.exec(feedText)) !== null) {
+        itemCount++;
         const itemContent = match[1];
         
-        // Extract fields from the item
-        const title = extractTag(itemContent, 'title');
-        const link = extractTag(itemContent, 'link');
-        const description = extractTag(itemContent, 'description');
-        const pubDate = extractTag(itemContent, 'pubDate');
-        
-        // Parse the description to extract structured data
-        const incidentData = parseDescription(description);
-        
-        // Skip if we don't have coordinates
-        if (!incidentData.latitude || !incidentData.longitude) {
-            continue;
+        try {
+            // Extract fields from the item
+            const title = extractTag(itemContent, 'title');
+            const link = extractTag(itemContent, 'link');
+            const description = extractTag(itemContent, 'description');
+            const pubDate = extractTag(itemContent, 'pubDate');
+            
+            // Parse the description to extract structured data
+            const incidentData = parseDescription(description);
+            
+            // Skip if we don't have coordinates
+            if (!incidentData.latitude || !incidentData.longitude) {
+                console.warn(`Skipping VIC incident ${itemCount}: No coordinates`);
+                continue;
+            }
+            
+            // Parse timestamp
+            const timestamp = pubDate ? new Date(pubDate).toISOString() : new Date().toISOString();
+            
+            // Determine warning level based on available information
+            const warningLevel = determineWarningLevel(incidentData);
+            
+            incidents.push({
+                title: title || 'Unknown Location',
+                message: formatIncidentMessage(title, incidentData),
+                timestamp: timestamp,
+                location: incidentData.location || title,
+                coordinates: [parseFloat(incidentData.longitude), parseFloat(incidentData.latitude)],
+                incidentId: incidentData.incidentNo || null,
+                incidentName: incidentData.incidentName || '',
+                type: incidentData.type || 'FIRE',
+                status: incidentData.status || 'Unknown',
+                size: incidentData.size || 'Unknown',
+                vehicles: incidentData.vehicles || '0',
+                agency: incidentData.agency || 'Unknown',
+                warningLevel: warningLevel,
+                link: link,
+                source: 'VIC'
+            });
+        } catch (itemError) {
+            console.error(`Error parsing VIC incident ${itemCount}:`, itemError.message);
         }
-        
-        // Parse timestamp
-        const timestamp = pubDate ? new Date(pubDate).toISOString() : new Date().toISOString();
-        
-        // Determine warning level based on available information
-        const warningLevel = determineWarningLevel(incidentData);
-        
-        incidents.push({
-            title: title || 'Unknown Location',
-            message: formatIncidentMessage(title, incidentData),
-            timestamp: timestamp,
-            location: incidentData.location || title,
-            coordinates: [parseFloat(incidentData.longitude), parseFloat(incidentData.latitude)],
-            incidentId: incidentData.incidentNo || null,
-            incidentName: incidentData.incidentName || '',
-            type: incidentData.type || 'FIRE',
-            status: incidentData.status || 'Unknown',
-            size: incidentData.size || 'Unknown',
-            vehicles: incidentData.vehicles || '0',
-            agency: incidentData.agency || 'Unknown',
-            warningLevel: warningLevel,
-            link: link,
-            source: 'VIC'
-        });
     }
+    
+    console.log(`Parsed ${itemCount} items from Emergency VIC feed, ${incidents.length} valid incidents`);
     
     return incidents;
 }

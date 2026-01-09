@@ -222,6 +222,7 @@ async function loadAlerts() {
     try {
         // Fetch CFA alerts (Primary feed)
         try {
+            console.log('Fetching CFA pager alerts...');
             const response = await fetch(CONFIG.apiEndpoint);
             if (response.ok) {
                 const cfaAlertsData = await response.json();
@@ -240,6 +241,10 @@ async function loadAlerts() {
                 
                 // Limit to 30 most recent CFA alerts
                 cfaAlerts = cfaAlerts.slice(0, 30);
+                console.log(`✓ Loaded ${cfaAlerts.length} CFA pager alerts`);
+            } else {
+                console.warn(`CFA API returned status: ${response.status}`);
+                cfaAlerts = [];
             }
         } catch (cfaError) {
             console.warn('CFA API not available:', cfaError);
@@ -248,12 +253,18 @@ async function loadAlerts() {
         
         // Fetch Emergency Victoria incidents (Secondary feed)
         try {
+            console.log('Fetching Emergency VIC and NSW RFS incidents...');
             const response = await fetch('/api/getEmergencyFeed');
             if (response.ok) {
                 const emergencyIncidentsData = await response.json();
                 // Process Emergency incidents - these have warning levels
                 // Note: source property (VIC or NSW) is already set by the API
                 emergencyIncidents = emergencyIncidentsData;
+                
+                // Count by source
+                const vicCount = emergencyIncidents.filter(i => i.source === 'VIC').length;
+                const nswCount = emergencyIncidents.filter(i => i.source === 'NSW').length;
+                console.log(`✓ Loaded ${emergencyIncidents.length} emergency incidents (VIC: ${vicCount}, NSW: ${nswCount})`);
                 
                 // Sort by timestamp (most recent first)
                 emergencyIncidents.sort((a, b) => {
@@ -264,6 +275,9 @@ async function loadAlerts() {
                 
                 // Limit to 20 most recent Emergency incidents
                 emergencyIncidents = emergencyIncidents.slice(0, 20);
+            } else {
+                console.warn(`Emergency API returned status: ${response.status}`);
+                emergencyIncidents = [];
             }
         } catch (emergencyError) {
             console.warn('Emergency API not available:', emergencyError);
@@ -675,6 +689,9 @@ function displayCFAAlerts(alertsToDisplay) {
             distanceHtml = `<div class="alert-distance">📍 ${alert.distance.toFixed(1)} km away</div>`;
         }
         
+        // Calculate opacity based on age (CFA alerts don't have warning levels)
+        const opacity = calculateAlertOpacity(alert.timestamp, 'advice');
+        
         return `
             <div class="alert-item cfa-alert" 
                  data-alert-id="${index}" 
@@ -682,7 +699,8 @@ function displayCFAAlerts(alertsToDisplay) {
                  onclick="selectCFAAlert(${index})"
                  role="listitem"
                  tabindex="0"
-                 aria-label="CFA alert at ${alert.location || 'unknown location'}">
+                 aria-label="CFA alert at ${alert.location || 'unknown location'}"
+                 style="opacity: ${opacity}; transition: opacity 0.3s ease;">
                 <div class="alert-icon pager-icon" aria-hidden="true">📟</div>
                 <div class="alert-content">
                     <div class="alert-location">${alert.location || 'Location Unknown'}</div>
@@ -708,10 +726,18 @@ function displayEmergencyIncidents(incidentsToDisplay) {
         return;
     }
     
+    // Count by source for debugging
+    const vicCount = incidentsToDisplay.filter(i => i.source === 'VIC').length;
+    const nswCount = incidentsToDisplay.filter(i => i.source === 'NSW').length;
+    console.log(`Displaying ${vicCount} VIC incidents and ${nswCount} NSW incidents`);
+    
     incidentsList.innerHTML = incidentsToDisplay.map((incident, index) => {
         // Get warning level styling
         const warningLevel = incident.warningLevel || 'advice';
         const warningStyle = getWarningStyle(warningLevel);
+        
+        // Calculate opacity based on age and warning level
+        const opacity = calculateAlertOpacity(incident.timestamp, warningLevel);
         
         let distanceHtml = '';
         if (incident.distance !== undefined) {
@@ -724,9 +750,10 @@ function displayEmergencyIncidents(incidentsToDisplay) {
             incidentNameHtml = `<div class="alert-incident-name">${incident.incidentName}</div>`;
         }
         
-        // Add source badge
+        // Add source badge with agency info
         const sourceLabel = incident.source === 'NSW' ? 'NSW' : 'VIC';
-        const sourceBadge = `<span class="source-badge source-${sourceLabel.toLowerCase()}">${sourceLabel}</span>`;
+        const agencyInfo = incident.agency || 'Unknown';
+        const sourceBadge = `<span class="source-badge source-${sourceLabel.toLowerCase()}" title="${agencyInfo}">${sourceLabel}</span>`;
         
         return `
             <div class="alert-item emergency-incident" 
@@ -737,7 +764,7 @@ function displayEmergencyIncidents(incidentsToDisplay) {
                  role="listitem"
                  tabindex="0"
                  aria-label="Emergency incident, ${warningStyle.label}, at ${incident.location || 'unknown location'}"
-                 style="border-left-color: ${warningStyle.color};">
+                 style="border-left-color: ${warningStyle.color}; opacity: ${opacity}; transition: opacity 0.3s ease;">
                 <div class="alert-icon triangle-icon" style="color: ${warningStyle.color};" aria-hidden="true">▲</div>
                 <div class="alert-content">
                     <div class="alert-warning-badge">${warningStyle.label} ${sourceBadge}</div>
@@ -914,12 +941,17 @@ async function updateMapWithSeparateFeeds() {
         }
         
         if (alert.coordinates) {
+            // Calculate opacity based on age
+            const opacity = calculateAlertOpacity(alert.timestamp, 'advice');
+            
             // Create custom marker element with pager icon
             const markerEl = document.createElement('div');
             markerEl.className = 'custom-marker cfa-marker';
             markerEl.setAttribute('role', 'button');
             markerEl.setAttribute('aria-label', `CFA alert at ${alert.location || 'unknown location'}`);
             markerEl.setAttribute('data-alert-index', `cfa-${i}`);
+            markerEl.style.opacity = opacity;
+            markerEl.style.transition = 'opacity 0.3s ease';
             
             // Create marker icon (pager icon)
             const iconDiv = document.createElement('div');
@@ -950,10 +982,23 @@ async function updateMapWithSeparateFeeds() {
             markerEl.appendChild(iconDiv);
             markerEl.appendChild(infoDiv);
             
-            const marker = new mapboxgl.Marker({ element: markerEl })
+            // Add click handler to marker element
+            markerEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectCFAAlert(i);
+            });
+            
+            const marker = new mapboxgl.Marker({ 
+                element: markerEl,
+                anchor: 'bottom' // Anchor at bottom to prevent jumping
+            })
                 .setLngLat(alert.coordinates)
                 .setPopup(
-                    new mapboxgl.Popup({ offset: 25 })
+                    new mapboxgl.Popup({ 
+                        offset: 25,
+                        closeButton: true,
+                        closeOnClick: false
+                    })
                         .setHTML(`
                             <div class="popup-type">📟 CFA Alert</div>
                             <div class="popup-location">${alert.location || 'Location Unknown'}</div>
@@ -977,6 +1022,9 @@ async function updateMapWithSeparateFeeds() {
             const warningLevel = incident.warningLevel || 'advice';
             const warningStyle = getWarningStyle(warningLevel);
             
+            // Calculate opacity based on age and warning level
+            const opacity = calculateAlertOpacity(incident.timestamp, warningLevel);
+            
             // Create custom marker element with triangle icon
             const markerEl = document.createElement('div');
             markerEl.className = 'custom-marker emergency-marker';
@@ -984,6 +1032,8 @@ async function updateMapWithSeparateFeeds() {
             markerEl.setAttribute('aria-label', `Emergency incident at ${incident.location || 'unknown location'}`);
             markerEl.setAttribute('data-alert-index', `emergency-${i}`);
             markerEl.setAttribute('data-warning-level', warningLevel);
+            markerEl.style.opacity = opacity;
+            markerEl.style.transition = 'opacity 0.3s ease';
             
             // Create marker icon (triangle icon with warning color)
             const iconDiv = document.createElement('div');
@@ -1023,10 +1073,23 @@ async function updateMapWithSeparateFeeds() {
             markerEl.appendChild(iconDiv);
             markerEl.appendChild(infoDiv);
             
-            const marker = new mapboxgl.Marker({ element: markerEl })
+            // Add click handler to marker element
+            markerEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectEmergencyIncident(i);
+            });
+            
+            const marker = new mapboxgl.Marker({ 
+                element: markerEl,
+                anchor: 'bottom' // Anchor at bottom to prevent jumping
+            })
                 .setLngLat(incident.coordinates)
                 .setPopup(
-                    new mapboxgl.Popup({ offset: 25 })
+                    new mapboxgl.Popup({ 
+                        offset: 25,
+                        closeButton: true,
+                        closeOnClick: false
+                    })
                         .setHTML(`
                             <div class="popup-warning" style="background-color: ${warningStyle.color}; color: ${warningStyle.textColor};">${warningStyle.label}</div>
                             <div class="popup-location">${incident.location || 'Location Unknown'}</div>
@@ -1066,6 +1129,74 @@ function formatTime(timestamp) {
     // Check if date is valid
     if (isNaN(date.getTime())) return 'Unknown time';
     return date.toLocaleString();
+}
+
+/**
+ * Calculate age of alert in hours
+ * @param {string} timestamp - ISO timestamp
+ * @returns {number} Age in hours
+ */
+function getAlertAgeInHours(timestamp) {
+    if (!timestamp) return 999; // Very old
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return 999;
+    
+    const now = new Date();
+    const ageMs = now - date;
+    const ageHours = ageMs / (1000 * 60 * 60);
+    return ageHours;
+}
+
+/**
+ * Calculate opacity based on alert age
+ * Alerts fade out gradually after 1 hour to reduce visual clutter while keeping them accessible
+ * 
+ * Fade curve design:
+ * - 0-1 hour: Full opacity (1.0) - Recent alerts are fully visible
+ * - 1-2 hours: Gradual fade (1.0 -> 0.5) - Linear fade at 0.5 per hour
+ * - 2-3 hours: Slower fade (0.5 -> 0.3) - Linear fade at 0.2 per hour
+ * - 3+ hours: Minimum opacity (0.3) - Old alerts remain visible but faded
+ * 
+ * Emergency warnings always stay at minimum 0.7 opacity to ensure visibility
+ * 
+ * @param {string} timestamp - ISO timestamp
+ * @param {string} warningLevel - 'advice', 'watchAndAct', or 'emergency'
+ * @returns {number} Opacity value between 0.3 and 1.0
+ */
+function calculateAlertOpacity(timestamp, warningLevel) {
+    const ageHours = getAlertAgeInHours(timestamp);
+    
+    // Opacity thresholds and fade rates
+    const OPACITY_FULL = 1.0;
+    const OPACITY_MID = 0.5;
+    const OPACITY_MIN = 0.3;
+    const OPACITY_EMERGENCY_MIN = 0.7;
+    
+    const FADE_THRESHOLD_1 = 1; // Hours until fade begins
+    const FADE_THRESHOLD_2 = 2; // Hours until slower fade
+    const FADE_THRESHOLD_3 = 3; // Hours until minimum opacity
+    
+    const FADE_RATE_FAST = 0.5; // Opacity lost per hour in fast fade
+    const FADE_RATE_SLOW = 0.2; // Opacity lost per hour in slow fade
+    
+    // Emergency warnings should remain more visible
+    const minOpacity = (warningLevel === 'emergency') ? OPACITY_EMERGENCY_MIN : OPACITY_MIN;
+    
+    if (ageHours <= FADE_THRESHOLD_1) {
+        // Recent alerts: full opacity
+        return OPACITY_FULL;
+    } else if (ageHours <= FADE_THRESHOLD_2) {
+        // 1-2 hours: gradual fade
+        const fadeProgress = (ageHours - FADE_THRESHOLD_1);
+        return Math.max(minOpacity, OPACITY_FULL - (FADE_RATE_FAST * fadeProgress));
+    } else if (ageHours <= FADE_THRESHOLD_3) {
+        // 2-3 hours: slower fade
+        const fadeProgress = (ageHours - FADE_THRESHOLD_2);
+        return Math.max(minOpacity, OPACITY_MID - (FADE_RATE_SLOW * fadeProgress));
+    } else {
+        // 3+ hours: minimum opacity
+        return minOpacity;
+    }
 }
 
 // Show error message
