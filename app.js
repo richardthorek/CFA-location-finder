@@ -600,18 +600,37 @@ function filterAndUpdateAlerts() {
         }
     });
     
-    // Combine all alerts with coordinates and distances, then sort by distance
-    const allAlertsWithDistance = [
-        ...cfaAlerts.filter(a => a.coordinates && a.distance !== undefined).map(a => ({ ...a, feedType: 'cfa' })),
-        ...emergencyIncidents.filter(i => i.coordinates && i.distance !== undefined).map(i => ({ ...i, feedType: 'emergency' }))
-    ].sort((a, b) => a.distance - b.distance);
+    // Combine alerts with coordinates and distances, sorting by distance
+    // Build combined array efficiently without intermediate spreads
+    const allAlertsWithDistance = [];
     
-    // Take the 20 closest alerts regardless of distance
+    for (const alert of cfaAlerts) {
+        if (alert.coordinates && alert.distance !== undefined) {
+            allAlertsWithDistance.push({ ...alert, feedType: 'cfa' });
+        }
+    }
+    
+    for (const incident of emergencyIncidents) {
+        if (incident.coordinates && incident.distance !== undefined) {
+            allAlertsWithDistance.push({ ...incident, feedType: 'emergency' });
+        }
+    }
+    
+    // Sort by distance and take 20 closest
+    allAlertsWithDistance.sort((a, b) => a.distance - b.distance);
     const closest20 = allAlertsWithDistance.slice(0, 20);
     
     // Separate back into feed types
-    const cfaAlertsFiltered = closest20.filter(a => a.feedType === 'cfa');
-    const emergencyIncidentsFiltered = closest20.filter(a => a.feedType === 'emergency');
+    const cfaAlertsFiltered = [];
+    const emergencyIncidentsFiltered = [];
+    
+    for (const alert of closest20) {
+        if (alert.feedType === 'cfa') {
+            cfaAlertsFiltered.push(alert);
+        } else {
+            emergencyIncidentsFiltered.push(alert);
+        }
+    }
     
     // Update display with filtered feeds
     displayCFAAlerts(cfaAlertsFiltered);
@@ -1027,8 +1046,9 @@ async function updateMapWithSeparateFeeds() {
             const opacity = calculateAlertOpacity(incident.timestamp, warningLevel);
             const recencyColor = getAlertColorByRecency(incident.timestamp);
             
-            // Blend warning color with recency color for emergency incidents
-            // For emergency warnings, prioritize warning color; for others, show recency more prominently
+            // For emergency warnings, prioritize official warning color for safety
+            // For lower severity (watch & act, advice), use recency color to show age
+            // Recency glow effect is always applied regardless
             const displayColor = warningLevel === 'emergency' ? warningStyle.color : recencyColor;
             
             // Create custom marker element with triangle icon

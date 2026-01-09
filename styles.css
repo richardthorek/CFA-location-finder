@@ -1073,14 +1073,8 @@ header p {
     font-size: 0.9em; /* Reduced from 1.6em for smaller default footprint */
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     transition: all var(--transition-base);
-    /* Removed floating animation for cleaner default appearance */
     /* Prevent icon from interfering with click events - click handlers are on parent marker element */
     pointer-events: none;
-}
-
-@keyframes iconFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-3px); }
 }
 
 .triangle-marker {
