@@ -337,6 +337,13 @@ header p {
     font-size: 1.1em;
 }
 
+.popup-type {
+    font-weight: bold;
+    color: #2196F3;
+    margin-bottom: 6px;
+    font-size: 0.95em;
+}
+
 .popup-message {
     color: #666;
     font-size: 0.9em;

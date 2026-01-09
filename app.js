@@ -846,7 +846,7 @@ async function updateMapWithSeparateFeeds() {
                 .setPopup(
                     new mapboxgl.Popup({ offset: 25 })
                         .setHTML(`
-                            <div class="popup-location">📟 CFA Alert</div>
+                            <div class="popup-type">📟 CFA Alert</div>
                             <div class="popup-location">${alert.location || 'Location Unknown'}</div>
                             <div class="popup-message">${alert.message}</div>
                             <div class="popup-time">${formatTime(alert.timestamp)}</div>
@@ -919,7 +919,7 @@ async function updateMapWithSeparateFeeds() {
                 .setPopup(
                     new mapboxgl.Popup({ offset: 25 })
                         .setHTML(`
-                            <div class="popup-warning">${warningStyle.label}</div>
+                            <div class="popup-warning" style="background-color: ${warningStyle.color}; color: ${warningStyle.textColor};">${warningStyle.label}</div>
                             <div class="popup-location">${incident.location || 'Location Unknown'}</div>
                             ${incident.incidentName ? `<div class="popup-incident-name">${incident.incidentName}</div>` : ''}
                             <div class="popup-message">${incident.message}</div>
