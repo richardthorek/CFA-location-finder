@@ -57,9 +57,20 @@ module.exports = async function (context, req) {
             context.log.error('Error fetching NSW RFS feed:', nswError);
         }
 
-        // If no incidents from either feed, return error
+        // If no incidents from either feed, return empty array
         if (allIncidents.length === 0) {
-            throw new Error('No incidents could be fetched from either feed');
+            context.log.warn('No incidents available from either feed');
+            context.res = {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET',
+                    'Access-Control-Allow-Headers': 'Content-Type'
+                },
+                body: JSON.stringify([])
+            };
+            return;
         }
 
         context.res = {
@@ -168,7 +179,7 @@ function parseNSWRFSFeed(feedText) {
         const category = extractTag(itemContent, 'category');
         
         // Extract georss:point (format: "lat lon")
-        const pointMatch = itemContent.match(/<point[^>]*>([\s\S]*?)<\/point>/i);
+        const pointMatch = itemContent.match(/<(?:georss:)?point[^>]*>([\s\S]*?)<\/(?:georss:)?point>/i);
         if (!pointMatch) {
             continue; // Skip if no coordinates
         }
@@ -351,8 +362,10 @@ function parseNSWDescription(description) {
     };
     
     for (const [fieldLabel, fieldKey] of Object.entries(fields)) {
+        // Escape special regex characters in field label
+        const escapedLabel = fieldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         // Match field with <br /> or <br> as separator
-        const regex = new RegExp(`${fieldLabel}:\\s*([^<]*?)(?:<br\\s*\\/?>|$)`, 'i');
+        const regex = new RegExp(`${escapedLabel}:\\s*([^<]*?)(?:<br\\s*\\/?>|$)`, 'i');
         const match = description.match(regex);
         if (match) {
             data[fieldKey] = match[1].trim();
