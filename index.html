@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CFA Location Finder - Victoria Fire Alerts</title>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚒 CFA Location Finder</h1>
+            <p>Real-time fire alerts across Victoria, Australia</p>
+        </header>
+        
+        <div class="main-content">
+            <div id="map"></div>
+            
+            <div class="sidebar">
+                <div class="controls">
+                    <button id="refreshBtn" class="btn">
+                        <span id="refreshIcon">🔄</span> Refresh Alerts
+                    </button>
+                    <div id="lastUpdate" class="last-update"></div>
+                </div>
+                
+                <div class="alerts-container">
+                    <h2>Active Alerts (<span id="alertCount">0</span>)</h2>
+                    <div id="alertsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <script src="app.js"></script>
+</body>
+</html>
