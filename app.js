@@ -20,23 +20,30 @@ let autoZoomEnabled = true; // Track if auto-zoom is enabled
 let alertToMarkerMap = new Map(); // Maps alert global index to marker
 
 /**
- * Get warning level styling based on Australian Warning System standards
+ * Get warning level styling based on Australian Warning System official colors
+ * Uses official National Framework hazard colors and design guidelines
  * @param {string} warningLevel - 'advice', 'watchAndAct', or 'emergency'
- * @returns {object} Style object with color and label
+ * @returns {object} Style object with color, label, and icon
  */
 function getWarningStyle(warningLevel) {
     const styles = {
         advice: {
-            color: '#FFD700',  // Yellow
-            label: 'Advice'
+            color: '#FBE032',  // Official Hazard Yellow (C 3 M 7 Y 91 K 0)
+            textColor: '#000000',  // Black for yellow tier
+            label: 'Advice',
+            icon: '🔥'
         },
         watchAndAct: {
-            color: '#FF8C00',  // Orange
-            label: 'Watch and Act'
+            color: '#FF7900',  // Official Hazard Orange (C 0 M 65 Y 100 K 0)
+            textColor: '#000000',  // Black for orange tier
+            label: 'Watch and Act',
+            icon: '🔥'
         },
         emergency: {
-            color: '#DC143C',  // Red
-            label: 'Emergency Warning'
+            color: '#D6001C',  // Official Hazard Red (C 9 M 100 Y 100 K 2)
+            textColor: '#FFFFFF',  // White for red tier
+            label: 'Emergency Warning',
+            icon: '🔥'
         }
     };
     

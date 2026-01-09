@@ -173,22 +173,23 @@ header p {
     font-weight: bold;
     margin-bottom: 5px;
     text-transform: uppercase;
+    border: 1px solid #000;  /* Black outline as per guidelines */
 }
 
-/* Warning level specific colors for accessibility */
+/* Australian Warning System official colors with proper text colors */
 .alert-item[data-warning-level="advice"] .alert-warning-badge {
-    background-color: #FFD700;
-    color: #000;  /* Dark text on yellow for better contrast */
+    background-color: #FBE032;  /* Hazard Yellow */
+    color: #000;  /* Black text for yellow tier */
 }
 
 .alert-item[data-warning-level="watchAndAct"] .alert-warning-badge {
-    background-color: #FF8C00;
-    color: #fff;  /* White text on orange */
+    background-color: #FF7900;  /* Hazard Orange */
+    color: #000;  /* Black text for orange tier */
 }
 
 .alert-item[data-warning-level="emergency"] .alert-warning-badge {
-    background-color: #DC143C;
-    color: #fff;  /* White text on red */
+    background-color: #D6001C;  /* Hazard Red */
+    color: #fff;  /* White text for red tier */
 }
 
 .alert-location {
