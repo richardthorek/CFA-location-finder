@@ -1,19 +1,49 @@
 // Using node-fetch v2 for compatibility with CommonJS modules in Azure Functions
 // Note: Could migrate to native fetch API in Node.js 18+ or node-fetch v3 (ESM) in future
 const fetch = require('node-fetch');
+const { shouldFetch, updateLastFetch, getCachedFeed, cacheFeed } = require('../shared/storageService');
+const { enrichAlertsWithCoordinates } = require('../shared/geocodingService');
+
+const FEED_TYPE = 'CFA';
 
 /**
  * Azure Function to fetch and parse CFA feed
- * This acts as a proxy to avoid CORS issues and parse the feed data
+ * Implements caching and rate limiting to minimize redundant fetches
+ * Enriches alerts with geocoded coordinates
  */
 module.exports = async function (context, req) {
     context.log('CFA Feed request received');
 
-    // Get CFA feed URL from environment variable or use default
-    const CFA_FEED_URL = process.env.CFA_FEED_URL || 'https://www.mazzanet.net.au/cfa/pager-cfa.php';
-
     try {
-        // Fetch the CFA feed
+        // Check if we need to fetch fresh data or can use cache
+        const needsFetch = await shouldFetch(FEED_TYPE);
+        
+        if (!needsFetch) {
+            // Try to return cached data
+            const cached = await getCachedFeed(FEED_TYPE);
+            if (cached) {
+                context.log(`Returning cached CFA feed with ${cached.length} alerts`);
+                context.res = {
+                    status: 200,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Methods': 'GET',
+                        'Access-Control-Allow-Headers': 'Content-Type',
+                        'X-Cache-Status': 'HIT'
+                    },
+                    body: JSON.stringify(cached)
+                };
+                return;
+            }
+        }
+        
+        // Fetch fresh data from source (cache is stale or missing)
+        // This will parse the feed and enrich with geocoded coordinates
+        // using cached coordinates for known locations
+        context.log('Fetching fresh CFA feed from source');
+        const CFA_FEED_URL = process.env.CFA_FEED_URL || 'https://www.mazzanet.net.au/cfa/pager-cfa.php';
+        
         const response = await fetch(CFA_FEED_URL, {
             headers: {
                 'User-Agent': 'CFA-Location-Finder/1.0'
@@ -27,8 +57,18 @@ module.exports = async function (context, req) {
 
         const feedText = await response.text();
         
-        // Parse the feed (assuming it's a simple text format or RSS)
-        const alerts = parseCFAFeed(feedText);
+        // Parse the feed
+        let alerts = parseCFAFeed(feedText);
+        context.log(`Parsed ${alerts.length} CFA alerts from feed`);
+        
+        // Enrich alerts with geocoded coordinates (uses cache to minimize Mapbox API calls)
+        alerts = await enrichAlertsWithCoordinates(alerts, FEED_TYPE, context);
+        
+        // Update fetch tracking
+        await updateLastFetch(FEED_TYPE);
+        
+        // Cache the enriched results
+        await cacheFeed(FEED_TYPE, alerts);
 
         context.res = {
             status: 200,
@@ -36,13 +76,30 @@ module.exports = async function (context, req) {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET',
-                'Access-Control-Allow-Headers': 'Content-Type'
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'X-Cache-Status': 'MISS'
             },
             body: JSON.stringify(alerts)
         };
 
     } catch (error) {
         context.log.error('Error fetching CFA feed:', error);
+        
+        // Try to return cached data as fallback
+        const cached = await getCachedFeed(FEED_TYPE);
+        if (cached) {
+            context.log('Returning stale cache due to fetch error');
+            context.res = {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'X-Cache-Status': 'STALE'
+                },
+                body: JSON.stringify(cached)
+            };
+            return;
+        }
         
         context.res = {
             status: 500,
