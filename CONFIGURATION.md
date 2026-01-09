@@ -13,24 +13,16 @@ The application uses MapBox for displaying maps and geocoding locations. You'll 
 
 ### Configuring the Token
 
-The application now reads the MapBox token from the `MAPBOX_TOKEN` environment variable instead of hardcoding it in the source code.
+Edit `app.js` and replace the token in the CONFIG object:
 
-**For Local Development:**
-- The app will use a fallback demo token if the `MAPBOX_TOKEN` environment variable is not set
-- To test with your own token locally, you can set the environment variable before running:
-  ```bash
-  export MAPBOX_TOKEN='your_token_here'
-  ```
-
-**For Production (Azure Static Web Apps):**
-1. Go to [Azure Portal](https://portal.azure.com)
-2. Navigate to your Static Web App resource
-3. Select **Configuration** from the left menu
-4. Add a new Application Setting:
-   - **Name**: `MAPBOX_TOKEN`
-   - **Value**: Your MapBox API token from https://account.mapbox.com/
-5. Click **Save**
-6. The Azure Function will now serve this token to the frontend application
+```javascript
+const CONFIG = {
+    mapboxToken: 'YOUR_MAPBOX_TOKEN_HERE', // Replace with your token
+    mapCenter: [144.9631, -37.8136],
+    mapZoom: 7,
+    apiEndpoint: '/api/getCFAFeed'
+};
+```
 
 ### Azure Static Web App Deployment
 
@@ -49,9 +41,8 @@ The application now reads the MapBox token from the `MAPBOX_TOKEN` environment v
    - Available in your Azure resource under "Deployment token"
 
 3. **Update MapBox Token**:
-   - Set the `MAPBOX_TOKEN` environment variable in Azure Static Web App Configuration
-   - Navigate to: Azure Portal → Your Static Web App → Configuration → Application settings
-   - Add: Name: `MAPBOX_TOKEN`, Value: Your token from https://account.mapbox.com/
+   - After deployment, update the token in `app.js`
+   - Commit and push to trigger redeployment
 
 ### Testing Locally
 
@@ -106,9 +97,8 @@ const CFA_FEED_URL = 'https://www.mazzanet.net.au/cfa/pager-cfa.php';
 
 ### Security Notes
 
-- The MapBox token is now loaded from the `MAPBOX_TOKEN` environment variable
-- Set this environment variable in Azure Static Web App Configuration (Application settings)
-- The token is served through a secure Azure Function endpoint
+- The default MapBox token in the code is public and limited
+- Replace it with your own token for production use
 - MapBox free tier includes:
   - 50,000 map loads per month
   - 100,000 geocoding requests per month
@@ -118,9 +108,7 @@ const CFA_FEED_URL = 'https://www.mazzanet.net.au/cfa/pager-cfa.php';
 
 #### Map doesn't load
 - Check browser console for errors
-- Verify MapBox token is valid in Azure Configuration
-- Check that the `MAPBOX_TOKEN` environment variable is set in Azure Static Web App settings
-- Test the config endpoint: `/api/getConfig`
+- Verify MapBox token is valid
 - Ensure you're not over rate limits
 
 #### No alerts showing
@@ -133,13 +121,12 @@ const CFA_FEED_URL = 'https://www.mazzanet.net.au/cfa/pager-cfa.php';
 - For local testing, use the provided `func start` command
 - Or disable CORS in browser for testing (not recommended for production)
 
-### Environment Variables
+### Environment Variables (Optional)
 
-You can use Azure App Settings to configure the application:
+You can use Azure App Settings to configure the API:
 
-In Azure Portal → Static Web App → Configuration → Application settings:
-- `MAPBOX_TOKEN`: **Required** - Your MapBox API token for map rendering and geocoding
-- `CFA_FEED_URL`: Override the default CFA feed URL if needed
+In Azure Portal → Static Web App → Configuration:
+- `CFA_FEED_URL`: Override the default CFA feed URL
 - Any other custom configuration needed
 
 ### Support
