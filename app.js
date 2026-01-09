@@ -124,29 +124,78 @@ async function loadAlerts() {
 }
 
 // Parse location from CFA alert message
+// Note: The backend already extracts locations, but this provides a fallback
 function parseLocation(message) {
-    // CFA messages typically contain location information
-    // Common patterns: "AT LOCATION", "NR LOCATION", location names
+    if (!message) return null;
     
-    // Try to extract location between common keywords
-    const patterns = [
-        /(?:AT|at)\s+([A-Z][A-Za-z\s]+?)(?:\s+(?:VIC|Vic|VICTORIA|Victoria))/,
-        /(?:NR|nr|NEAR|near)\s+([A-Z][A-Za-z\s]+?)(?:\s+(?:VIC|Vic|VICTORIA|Victoria))/,
-        /(?:IN|in)\s+([A-Z][A-Za-z\s]+?)(?:\s+(?:VIC|Vic|VICTORIA|Victoria))/,
-        /([A-Z][A-Za-z\s]+)\s+(?:VIC|VICTORIA)/i
+    // Constants for location extraction (match backend)
+    const MIN_SUBURB_LENGTH = 3;
+    const MIN_SUBURB_CHARS = 4;
+    const MAX_SUBURB_CHARS = 30;
+    
+    // Common non-location keywords to filter out
+    const nonLocationKeywords = [
+        'FIRE', 'GRASS', 'HOUSE', 'BATTERY', 'STRUCTURE', 'VEHICLE',
+        'ALERT', 'SPREADING', 'INCIDENT', 'STRIKE', 'TEAM', 'CODE',
+        'ALARM', 'SMOKE', 'COLUMN', 'DOWN', 'POWERLINES'
     ];
+    const filterPattern = new RegExp(`^(${nonLocationKeywords.join('|')})\\b`);
     
-    for (const pattern of patterns) {
-        const match = message.match(pattern);
-        if (match && match[1]) {
-            return match[1].trim();
+    // Pattern 1: Address with street number before "/"
+    // Example: "250 HEATHS RD HOPPERS CROSSING /"
+    const streetMatch = message.match(/\b(\d+\s+[A-Z][A-Za-z\s-]+?)\s+([A-Z][A-Z\s]+?)\s+\//);
+    if (streetMatch) {
+        const suburb = streetMatch[2].trim().replace(/\s+[A-Z]\d*$/, '').trim();
+        if (!suburb.match(filterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
+            return suburb;
         }
     }
     
-    // If no pattern matches, try to extract first capitalized word sequence
-    const capitalizedMatch = message.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/);
-    if (capitalizedMatch && capitalizedMatch[1]) {
-        return capitalizedMatch[1];
+    // Pattern 2: Road name without number
+    // Example: "BENALLA-TOCUMWAL RD MUCKATAH"
+    const roadMatch = message.match(/\b([A-Z][A-Za-z\s-]+?)\s+RD\s+([A-Z][A-Z\s]+?)(?:\s+\/|\s+SV[A-Z]+|\s+M\s+\d)/);
+    if (roadMatch) {
+        const suburb = roadMatch[2].trim();
+        if (!suburb.match(filterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
+            return suburb;
+        }
+    }
+    
+    // Pattern 3: ASSEMBLE AT location
+    const assembleMatch = message.match(/ASSEMBLE AT\s+[A-Z\s-]+?\s+(?:\d+\s+)?[A-Z][A-Za-z\s-]+?\s+([A-Z][A-Z\s]+?)\s+\//);
+    if (assembleMatch) {
+        const suburb = assembleMatch[1].trim();
+        if (!suburb.match(filterPattern) && suburb.length >= MIN_SUBURB_LENGTH) {
+            return suburb;
+        }
+    }
+    
+    // Pattern 4: Extract suburb before regional codes (SV*, M <digit>)
+    const suburbMatch = message.match(new RegExp(`\\b([A-Z][A-Z\\s]{${MIN_SUBURB_CHARS},${MAX_SUBURB_CHARS}}?)\\s+(?:SV[A-Z]+|M\\s+\\d)`));
+    if (suburbMatch) {
+        const suburb = suburbMatch[1].trim();
+        const words = suburb.split(/\s+/);
+        
+        // Get the last few words that look like a suburb name
+        for (let i = Math.max(0, words.length - 3); i < words.length; i++) {
+            const candidate = words.slice(i).join(' ');
+            if (!candidate.match(filterPattern) && candidate.length >= MIN_SUBURB_CHARS) {
+                const cleaned = candidate.replace(/\s+[A-Z]\d*$/, '').trim();
+                if (cleaned.length >= MIN_SUBURB_CHARS) {
+                    return cleaned;
+                }
+            }
+        }
+    }
+    
+    // Pattern 5: Try to extract location with VIC/VICTORIA suffix (legacy support)
+    const vicPattern = /\b([A-Z][A-Za-z\s]+?)\s+(?:VIC|VICTORIA)\b/i;
+    const vicMatch = message.match(vicPattern);
+    if (vicMatch && vicMatch[1]) {
+        const location = vicMatch[1].trim();
+        if (!location.match(filterPattern)) {
+            return location;
+        }
     }
     
     return null;
