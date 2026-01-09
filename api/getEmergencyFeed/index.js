@@ -2,32 +2,65 @@
 const fetch = require('node-fetch');
 
 /**
- * Azure Function to fetch and parse Emergency Victoria RSS feed
+ * Azure Function to fetch and parse Emergency Victoria and NSW RFS RSS feeds
  * This provides current fire incidents with coordinates and warning levels
  */
 module.exports = async function (context, req) {
     context.log('Emergency Feed request received');
 
-    // Emergency Victoria RSS feed URL
-    const EMERGENCY_FEED_URL = 'https://data.emergency.vic.gov.au/Show?pageId=getIncidentRSS';
+    // Feed URLs
+    const EMERGENCY_VIC_FEED_URL = 'https://data.emergency.vic.gov.au/Show?pageId=getIncidentRSS';
+    const NSW_RFS_FEED_URL = 'https://www.rfs.nsw.gov.au/feeds/majorIncidents.xml';
 
     try {
-        // Fetch the Emergency Victoria RSS feed
-        const response = await fetch(EMERGENCY_FEED_URL, {
-            headers: {
-                'User-Agent': 'CFA-Location-Finder/1.0'
-            },
-            timeout: 10000
-        });
+        let allIncidents = [];
+        
+        // Fetch Emergency Victoria RSS feed
+        try {
+            const vicResponse = await fetch(EMERGENCY_VIC_FEED_URL, {
+                headers: {
+                    'User-Agent': 'CFA-Location-Finder/1.0'
+                },
+                timeout: 10000
+            });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            if (vicResponse.ok) {
+                const vicFeedText = await vicResponse.text();
+                const vicIncidents = parseEmergencyVicFeed(vicFeedText);
+                allIncidents = allIncidents.concat(vicIncidents);
+                context.log(`Fetched ${vicIncidents.length} incidents from Emergency VIC`);
+            } else {
+                context.log.warn(`Emergency VIC feed returned status: ${vicResponse.status}`);
+            }
+        } catch (vicError) {
+            context.log.error('Error fetching Emergency VIC feed:', vicError);
         }
 
-        const feedText = await response.text();
-        
-        // Parse the RSS feed
-        const incidents = parseEmergencyFeed(feedText);
+        // Fetch NSW RFS RSS feed
+        try {
+            const nswResponse = await fetch(NSW_RFS_FEED_URL, {
+                headers: {
+                    'User-Agent': 'CFA-Location-Finder/1.0'
+                },
+                timeout: 10000
+            });
+
+            if (nswResponse.ok) {
+                const nswFeedText = await nswResponse.text();
+                const nswIncidents = parseNSWRFSFeed(nswFeedText);
+                allIncidents = allIncidents.concat(nswIncidents);
+                context.log(`Fetched ${nswIncidents.length} incidents from NSW RFS`);
+            } else {
+                context.log.warn(`NSW RFS feed returned status: ${nswResponse.status}`);
+            }
+        } catch (nswError) {
+            context.log.error('Error fetching NSW RFS feed:', nswError);
+        }
+
+        // If no incidents from either feed, return error
+        if (allIncidents.length === 0) {
+            throw new Error('No incidents could be fetched from either feed');
+        }
 
         context.res = {
             status: 200,
@@ -37,11 +70,11 @@ module.exports = async function (context, req) {
                 'Access-Control-Allow-Methods': 'GET',
                 'Access-Control-Allow-Headers': 'Content-Type'
             },
-            body: JSON.stringify(incidents)
+            body: JSON.stringify(allIncidents)
         };
 
     } catch (error) {
-        context.log.error('Error fetching Emergency feed:', error);
+        context.log.error('Error in Emergency feed handler:', error);
         
         context.res = {
             status: 500,
@@ -50,7 +83,7 @@ module.exports = async function (context, req) {
                 'Access-Control-Allow-Origin': '*'
             },
             body: JSON.stringify({
-                error: 'Failed to fetch Emergency feed',
+                error: 'Failed to fetch Emergency feeds',
                 message: error.message
             })
         };
@@ -61,7 +94,7 @@ module.exports = async function (context, req) {
  * Parse Emergency Victoria RSS feed
  * The feed is XML with items containing title, description, pubDate, and guid
  */
-function parseEmergencyFeed(feedText) {
+function parseEmergencyVicFeed(feedText) {
     const incidents = [];
     
     // Extract all <item> elements
@@ -105,7 +138,81 @@ function parseEmergencyFeed(feedText) {
             vehicles: incidentData.vehicles || '0',
             agency: incidentData.agency || 'Unknown',
             warningLevel: warningLevel,
-            link: link
+            link: link,
+            source: 'VIC'
+        });
+    }
+    
+    return incidents;
+}
+
+/**
+ * Parse NSW RFS RSS feed
+ * Uses georss:point for coordinates and category for alert level
+ */
+function parseNSWRFSFeed(feedText) {
+    const incidents = [];
+    
+    // Extract all <item> elements
+    const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+    
+    let match;
+    while ((match = itemRegex.exec(feedText)) !== null) {
+        const itemContent = match[1];
+        
+        // Extract fields from the item
+        const title = extractTag(itemContent, 'title');
+        const link = extractTag(itemContent, 'link');
+        const description = extractTag(itemContent, 'description');
+        const pubDate = extractTag(itemContent, 'pubDate');
+        const category = extractTag(itemContent, 'category');
+        
+        // Extract georss:point (format: "lat lon")
+        const pointMatch = itemContent.match(/<point[^>]*>([\s\S]*?)<\/point>/i);
+        if (!pointMatch) {
+            continue; // Skip if no coordinates
+        }
+        
+        const pointData = pointMatch[1].trim().split(/\s+/);
+        if (pointData.length < 2) {
+            continue;
+        }
+        
+        const latitude = parseFloat(pointData[0]);
+        const longitude = parseFloat(pointData[1]);
+        
+        if (isNaN(latitude) || isNaN(longitude)) {
+            continue;
+        }
+        
+        // Parse the description to extract structured data
+        const incidentData = parseNSWDescription(description);
+        
+        // Parse timestamp
+        const timestamp = pubDate ? new Date(pubDate).toISOString() : new Date().toISOString();
+        
+        // Map NSW category to warning level
+        const warningLevel = mapNSWCategoryToWarningLevel(category);
+        
+        // Extract location from title (format: "LOCATION, SUBURB")
+        const location = title || 'Unknown Location';
+        
+        incidents.push({
+            title: title || 'Unknown Location',
+            message: formatNSWIncidentMessage(title, incidentData),
+            timestamp: timestamp,
+            location: location,
+            coordinates: [longitude, latitude],
+            incidentId: null,
+            incidentName: '',
+            type: incidentData.type || 'FIRE',
+            status: incidentData.status || 'Unknown',
+            size: incidentData.size || 'Unknown',
+            vehicles: incidentData.vehicles || '0',
+            agency: incidentData.agency || 'NSW RFS',
+            warningLevel: warningLevel,
+            link: link,
+            source: 'NSW'
         });
     }
     
@@ -219,4 +326,70 @@ function decodeHTML(html) {
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
         .replace(/&amp;/g, '&');  // Decode &amp; last to avoid double-decoding
+}
+
+/**
+ * Parse NSW RFS description field
+ * Format: ALERT LEVEL: <level> <br />LOCATION: <location> <br />...
+ */
+function parseNSWDescription(description) {
+    if (!description) return {};
+    
+    const data = {};
+    
+    // NSW RFS uses different field names
+    const fields = {
+        'ALERT LEVEL': 'alertLevel',
+        'LOCATION': 'location',
+        'COUNCIL AREA': 'councilArea',
+        'STATUS': 'status',
+        'TYPE': 'type',
+        'FIRE': 'fire',
+        'SIZE': 'size',
+        'RESPONSIBLE AGENCY': 'agency',
+        'UPDATED': 'updated'
+    };
+    
+    for (const [fieldLabel, fieldKey] of Object.entries(fields)) {
+        // Match field with <br /> or <br> as separator
+        const regex = new RegExp(`${fieldLabel}:\\s*([^<]*?)(?:<br\\s*\\/?>|$)`, 'i');
+        const match = description.match(regex);
+        if (match) {
+            data[fieldKey] = match[1].trim();
+        }
+    }
+    
+    return data;
+}
+
+/**
+ * Map NSW RFS category to warning level
+ * NSW uses: "Emergency Warning", "Watch and Act", "Advice"
+ */
+function mapNSWCategoryToWarningLevel(category) {
+    if (!category) return 'advice';
+    
+    const categoryLower = category.toLowerCase();
+    
+    if (categoryLower.includes('emergency')) {
+        return 'emergency';
+    }
+    if (categoryLower.includes('watch') || categoryLower.includes('act')) {
+        return 'watchAndAct';
+    }
+    // Default to advice
+    return 'advice';
+}
+
+/**
+ * Format NSW incident message for display
+ */
+function formatNSWIncidentMessage(title, incidentData) {
+    const type = incidentData.type || 'FIRE';
+    const location = title || 'Unknown Location';
+    const status = incidentData.status || 'Unknown status';
+    const size = incidentData.size || 'Unknown size';
+    const alertLevel = incidentData.alertLevel || 'Advice';
+    
+    return `${alertLevel}: ${type} at ${location} - ${status} - Size: ${size}`;
 }
