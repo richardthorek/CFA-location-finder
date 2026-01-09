@@ -171,9 +171,24 @@ header p {
     border-radius: 3px;
     font-size: 0.75em;
     font-weight: bold;
-    color: white;
     margin-bottom: 5px;
     text-transform: uppercase;
+}
+
+/* Warning level specific colors for accessibility */
+.alert-item[data-warning-level="advice"] .alert-warning-badge {
+    background-color: #FFD700;
+    color: #000;  /* Dark text on yellow for better contrast */
+}
+
+.alert-item[data-warning-level="watchAndAct"] .alert-warning-badge {
+    background-color: #FF8C00;
+    color: #fff;  /* White text on orange */
+}
+
+.alert-item[data-warning-level="emergency"] .alert-warning-badge {
+    background-color: #DC143C;
+    color: #fff;  /* White text on red */
 }
 
 .alert-location {

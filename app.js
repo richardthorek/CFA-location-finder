@@ -126,12 +126,13 @@ async function loadAlerts() {
             const response = await fetch(CONFIG.apiEndpoint);
             if (response.ok) {
                 const cfaAlerts = await response.json();
-                // Mark CFA alerts as such and set default warning level
-                cfaAlerts.forEach(alert => {
-                    alert.source = 'CFA';
-                    alert.warningLevel = alert.warningLevel || 'advice';
-                });
-                alertsData = alertsData.concat(cfaAlerts);
+                // Mark CFA alerts as such and set default warning level (create new objects)
+                const processedCfaAlerts = cfaAlerts.map(alert => ({
+                    ...alert,
+                    source: 'CFA',
+                    warningLevel: alert.warningLevel || 'advice'
+                }));
+                alertsData = alertsData.concat(processedCfaAlerts);
             }
         } catch (cfaError) {
             console.warn('CFA API not available:', cfaError);
@@ -142,11 +143,12 @@ async function loadAlerts() {
             const response = await fetch('/api/getEmergencyFeed');
             if (response.ok) {
                 const emergencyIncidents = await response.json();
-                // Mark emergency incidents as such
-                emergencyIncidents.forEach(incident => {
-                    incident.source = 'Emergency';
-                });
-                alertsData = alertsData.concat(emergencyIncidents);
+                // Mark emergency incidents as such (create new objects)
+                const processedEmergencyIncidents = emergencyIncidents.map(incident => ({
+                    ...incident,
+                    source: 'Emergency'
+                }));
+                alertsData = alertsData.concat(processedEmergencyIncidents);
             }
         } catch (emergencyError) {
             console.warn('Emergency API not available:', emergencyError);
@@ -613,7 +615,7 @@ function displayAlerts(alertsToDisplay) {
         
         return `
             <div class="alert-item" data-alert-id="${originalIndex}" data-warning-level="${warningLevel}" onclick="selectAlert(${originalIndex})" style="border-left-color: ${warningStyle.color};">
-                <div class="alert-warning-badge" style="background-color: ${warningStyle.color};">${warningStyle.label}</div>
+                <div class="alert-warning-badge">${warningStyle.label}</div>
                 <div class="alert-location" style="color: ${warningStyle.color};">${alert.location || 'Location Unknown'}</div>
                 ${incidentNameHtml}
                 <div class="alert-message">${alert.message}</div>
