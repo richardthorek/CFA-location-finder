@@ -106,12 +106,9 @@ async function loadAlerts() {
         
         // Sort alerts by timestamp (most recent first)
         alertsData.sort((a, b) => {
-            const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-            const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-            // Handle NaN cases by treating them as 0
-            const validTimeA = isNaN(timeA) ? 0 : timeA;
-            const validTimeB = isNaN(timeB) ? 0 : timeB;
-            return validTimeB - validTimeA;
+            const timeA = (a.timestamp ? new Date(a.timestamp).getTime() : 0) || 0;
+            const timeB = (b.timestamp ? new Date(b.timestamp).getTime() : 0) || 0;
+            return timeB - timeA;
         });
         
         // Limit to 20 most recent alerts
@@ -398,8 +395,8 @@ function filterAndUpdateAlerts() {
         }
     });
     
-    // Filter alerts with coordinates
-    const alertsWithCoords = alerts.filter(alert => alert.coordinates);
+    // Filter alerts with coordinates and valid distances
+    const alertsWithCoords = alerts.filter(alert => alert.coordinates && alert.distance !== undefined);
     
     // Sort by distance
     alertsWithCoords.sort((a, b) => a.distance - b.distance);
