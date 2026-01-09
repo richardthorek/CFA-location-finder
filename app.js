@@ -262,11 +262,24 @@ function getUserLocation() {
                 lat: position.coords.latitude
             };
             
-            // Add or update user marker
+            // Add or update user marker with pulsing blue dot
             if (userMarker) {
                 userMarker.setLngLat([userLocation.lng, userLocation.lat]);
             } else {
-                userMarker = new mapboxgl.Marker({ color: '#1976d2' })
+                // Create custom HTML element for pulsing marker
+                const markerElement = document.createElement('div');
+                markerElement.className = 'user-location-marker';
+                
+                const pulse = document.createElement('div');
+                pulse.className = 'user-location-pulse';
+                
+                const dot = document.createElement('div');
+                dot.className = 'user-location-dot';
+                
+                markerElement.appendChild(pulse);
+                markerElement.appendChild(dot);
+                
+                userMarker = new mapboxgl.Marker({ element: markerElement })
                     .setLngLat([userLocation.lng, userLocation.lat])
                     .setPopup(
                         new mapboxgl.Popup({ offset: 25 })
