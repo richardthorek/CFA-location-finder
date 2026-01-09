@@ -397,8 +397,8 @@ header p {
 
 .cfa-marker.marker-selected .marker-info {
     border-color: #2196F3;
-    background: #e3f2fd;
-    box-shadow: 0 4px 8px rgba(33, 150, 243, 0.4);
+    background: rgba(227, 242, 253, 0.9);
+    box-shadow: 0 2px 6px rgba(33, 150, 243, 0.4);
 }
 
 /* Emergency marker selection */
@@ -408,8 +408,8 @@ header p {
 
 .emergency-marker.marker-selected .marker-info {
     border-color: #d32f2f;
-    background: #ffebee;
-    box-shadow: 0 4px 8px rgba(211, 47, 47, 0.4);
+    background: rgba(255, 235, 238, 0.9);
+    box-shadow: 0 2px 6px rgba(211, 47, 47, 0.4);
 }
 
 .marker-icon {
@@ -427,42 +427,42 @@ header p {
 }
 
 .marker-info {
-    background: white;
-    border: 2px solid #d32f2f;
-    border-radius: 4px;
-    padding: 4px 8px;
-    margin-top: 4px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    min-width: 100px;
-    max-width: 160px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #d32f2f;
+    border-radius: 3px;
+    padding: 2px 6px;
+    margin-top: 2px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    min-width: 80px;
+    max-width: 120px;
     text-align: center;
 }
 
 .marker-location {
     font-weight: bold;
     color: #d32f2f;
-    font-size: 0.85em;
+    font-size: 0.75em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 150px;
+    max-width: 110px;
 }
 
 .marker-incident-name {
     font-size: 0.65em;
     color: #666;
-    margin-top: 2px;
+    margin-top: 1px;
     font-style: italic;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 150px;
+    max-width: 110px;
 }
 
 .marker-time {
-    font-size: 0.75em;
+    font-size: 0.65em;
     color: #666;
-    margin-top: 2px;
+    margin-top: 1px;
 }
 
 /* User location marker - pulsing blue dot */
