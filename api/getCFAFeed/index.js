@@ -92,8 +92,3 @@ module.exports = async function (context, req) {
         };
     }
 };
-
-const { TableClient } = require('@azure/data-tables');
-
-// Get configuration from environment variables
-const STORAGE_STRING = process.env.STORAGE_STRING;

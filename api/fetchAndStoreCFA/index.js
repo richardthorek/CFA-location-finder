@@ -29,10 +29,17 @@ module.exports = async function (context, myTimer) {
         const tableClient = TableClient.fromConnectionString(STORAGE_STRING, 'CFAAlerts');
         
         // Ensure table exists
-        await tableClient.createTable().catch(() => {
-            // Table might already exist, which is fine
-            context.log('Table already exists or created successfully');
-        });
+        try {
+            await tableClient.createTable();
+            context.log('Table created successfully');
+        } catch (err) {
+            // Table already exists - this is expected and fine
+            if (err.statusCode === 409) {
+                context.log('Table already exists');
+            } else {
+                context.log.warn('Table creation check returned unexpected error:', err.message);
+            }
+        }
 
         // Fetch the CFA feed
         context.log('Fetching CFA feed from:', CFA_FEED_URL);
@@ -61,21 +68,25 @@ module.exports = async function (context, myTimer) {
             // Generate a unique row key based on incident ID and timestamp
             const rowKey = alert.incidentId || generateRowKey(alert);
             
-            // Check if this alert already exists in storage
+            // Check if this alert already exists in storage with coordinates
+            let shouldGeocode = true;
             try {
                 const existingEntity = await tableClient.getEntity('alert', rowKey);
                 
                 // If it exists and has coordinates, skip geocoding
                 if (existingEntity.coordinates) {
                     context.log(`Alert ${rowKey} already exists with coordinates, skipping`);
-                    continue;
+                    shouldGeocode = false;
                 }
             } catch (err) {
-                // Entity doesn't exist, we'll create it
+                // Entity doesn't exist (404 error) or other error - we'll create/update it
+                if (err.statusCode !== 404) {
+                    context.log.warn(`Unexpected error checking entity ${rowKey}:`, err.message);
+                }
             }
 
-            // Geocode the location if we have one
-            if (alert.location) {
+            // Geocode the location if we need to
+            if (shouldGeocode && alert.location) {
                 context.log(`Geocoding location: ${alert.location}`);
                 const geocoded = await geocodeLocation(alert.location, MAPBOX_TOKEN, context);
                 
@@ -89,25 +100,27 @@ module.exports = async function (context, myTimer) {
                 }
             }
 
-            // Store in table storage
-            const entity = {
-                partitionKey: 'alert',
-                rowKey: rowKey,
-                message: alert.message,
-                timestamp: alert.timestamp,
-                location: alert.location || '',
-                coordinates: alert.coordinates ? JSON.stringify(alert.coordinates) : '',
-                placeName: alert.placeName || '',
-                incidentId: alert.incidentId || '',
-                capcode: alert.capcode || '',
-                fetchedAt: fetchTime.toISOString()
-            };
+            // Store in table storage only if we geocoded or if it's new
+            if (shouldGeocode) {
+                const entity = {
+                    partitionKey: 'alert',
+                    rowKey: rowKey,
+                    message: alert.message,
+                    timestamp: alert.timestamp,
+                    location: alert.location || '',
+                    coordinates: alert.coordinates ? JSON.stringify(alert.coordinates) : '',
+                    placeName: alert.placeName || '',
+                    incidentId: alert.incidentId || '',
+                    capcode: alert.capcode || '',
+                    fetchedAt: fetchTime.toISOString()
+                };
 
-            try {
-                await tableClient.upsertEntity(entity);
-                context.log(`Stored alert: ${rowKey}`);
-            } catch (err) {
-                context.log.error(`Error storing alert ${rowKey}:`, err.message);
+                try {
+                    await tableClient.upsertEntity(entity);
+                    context.log(`Stored alert: ${rowKey}`);
+                } catch (err) {
+                    context.log.error(`Error storing alert ${rowKey}:`, err.message);
+                }
             }
         }
 
@@ -134,10 +147,11 @@ module.exports = async function (context, myTimer) {
  * Generate a unique row key for an alert
  */
 function generateRowKey(alert) {
-    // Use timestamp + hash of message
+    // Use timestamp + capcode + hash of message for uniqueness
     const timestamp = new Date(alert.timestamp).getTime();
+    const capcodePart = alert.capcode ? `_${alert.capcode.replace(/[^a-zA-Z0-9]/g, '')}` : '';
     const messageHash = simpleHash(alert.message);
-    return `${timestamp}_${messageHash}`;
+    return `${timestamp}${capcodePart}_${messageHash}`;
 }
 
 /**
