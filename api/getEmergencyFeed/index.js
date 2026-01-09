@@ -129,7 +129,8 @@ module.exports = async function (context, req) {
         context.log(`CFA/VIC incidents: ${cfaCount}, NSW incidents: ${nswCount}`);
         
         // Enrich incidents with geocoded coordinates where needed
-        // Emergency feeds often have coordinates, but this fills in any missing ones
+        // Emergency feeds often have coordinates already, but this fills in any gaps
+        // Geocoding only occurs for new/unique locations not already cached in EnrichedAlerts
         allIncidents = await enrichAlertsWithCoordinates(allIncidents, FEED_TYPE, context);
         
         // Update fetch tracking

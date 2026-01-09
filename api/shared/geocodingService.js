@@ -42,6 +42,10 @@ async function geocodeLocation(location, feedType = 'default', context = null) {
         return null;
     }
     
+    // Timeout for Mapbox API calls - 10 seconds is sufficient for geocoding requests
+    // which are typically fast (<1s) but may be slow on network issues
+    const MAPBOX_TIMEOUT_MS = 10000;
+    
     try {
         const query = encodeURIComponent(`${location}, Victoria, Australia`);
         const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapboxToken}&country=AU&limit=1`;
@@ -51,7 +55,7 @@ async function geocodeLocation(location, feedType = 'default', context = null) {
         }
         
         const response = await fetch(url, {
-            timeout: 10000
+            timeout: MAPBOX_TIMEOUT_MS
         });
         
         if (!response.ok) {

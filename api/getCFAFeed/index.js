@@ -38,7 +38,9 @@ module.exports = async function (context, req) {
             }
         }
         
-        // Fetch fresh data from source
+        // Fetch fresh data from source (cache is stale or missing)
+        // This will parse the feed and enrich with geocoded coordinates
+        // using cached coordinates for known locations
         context.log('Fetching fresh CFA feed from source');
         const CFA_FEED_URL = process.env.CFA_FEED_URL || 'https://www.mazzanet.net.au/cfa/pager-cfa.php';
         

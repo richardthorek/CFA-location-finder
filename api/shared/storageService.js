@@ -44,7 +44,7 @@ async function getTableClient(tableName) {
         
         // Create table if it doesn't exist
         await client.createTable().catch(err => {
-            // Ignore "table already exists" errors
+            // Ignore "table already exists" errors (HTTP 409 Conflict)
             if (err.statusCode !== 409) {
                 throw err;
             }
@@ -228,9 +228,13 @@ async function storeEnrichedAlert(feedType, locationKey, coordinates, placeName)
 
 /**
  * Normalize a location string to create a consistent key for deduplication
+ * Azure Table Storage row keys support up to 1KB, we limit to 100 chars for consistency
  */
 function normalizeLocationKey(location) {
     if (!location) return '';
+    
+    // Maximum row key length for readability and Azure Table Storage best practices
+    const MAX_KEY_LENGTH = 100;
     
     // Convert to uppercase, remove extra spaces, and create a consistent format
     return location
@@ -238,7 +242,7 @@ function normalizeLocationKey(location) {
         .replace(/\s+/g, ' ')
         .trim()
         .replace(/[^A-Z0-9 ]/g, '') // Remove special characters
-        .substring(0, 100); // Limit length for table storage row key
+        .substring(0, MAX_KEY_LENGTH); // Limit length for table storage row key
 }
 
 module.exports = {
