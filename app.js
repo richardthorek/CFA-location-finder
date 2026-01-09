@@ -14,6 +14,9 @@ let markers = [];
 let alerts = [];
 let selectedAlertId = null;
 let refreshIntervalId = null;
+let userLocation = null;
+let userMarker = null;
+let routeLayer = null;
 
 // Load configuration from API
 async function loadConfig() {
@@ -70,6 +73,10 @@ function initMap() {
 function setupEventListeners() {
     document.getElementById('refreshBtn').addEventListener('click', () => {
         loadAlerts();
+    });
+    
+    document.getElementById('locateBtn').addEventListener('click', () => {
+        getUserLocation();
     });
 }
 
@@ -165,6 +172,220 @@ async function geocodeLocation(location) {
     }
 }
 
+// Get user's current location
+function getUserLocation() {
+    const locateBtn = document.getElementById('locateBtn');
+    const locateIcon = document.getElementById('locateIcon');
+    
+    if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser');
+        return;
+    }
+    
+    locateBtn.disabled = true;
+    locateIcon.textContent = '⏳';
+    
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            userLocation = {
+                lng: position.coords.longitude,
+                lat: position.coords.latitude
+            };
+            
+            // Add or update user marker
+            if (userMarker) {
+                userMarker.setLngLat([userLocation.lng, userLocation.lat]);
+            } else {
+                userMarker = new mapboxgl.Marker({ color: '#1976d2' })
+                    .setLngLat([userLocation.lng, userLocation.lat])
+                    .setPopup(
+                        new mapboxgl.Popup({ offset: 25 })
+                            .setHTML('<div class="popup-location">Your Location</div>')
+                    )
+                    .addTo(map);
+            }
+            
+            // Center map on user location and zoom to 100km view
+            map.flyTo({
+                center: [userLocation.lng, userLocation.lat],
+                zoom: 9 // Approximately 100km radius view
+            });
+            
+            // Filter and update alerts within 100km
+            filterAndUpdateAlerts();
+            
+            locateBtn.disabled = false;
+            locateIcon.textContent = '📍';
+        },
+        (error) => {
+            console.error('Error getting location:', error);
+            let errorMsg = 'Unable to get your location. ';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg += 'Please enable location access in your browser.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg += 'Location information is unavailable.';
+                    break;
+                case error.TIMEOUT:
+                    errorMsg += 'Location request timed out.';
+                    break;
+                default:
+                    errorMsg += 'An unknown error occurred.';
+            }
+            
+            alert(errorMsg);
+            locateBtn.disabled = false;
+            locateIcon.textContent = '📍';
+        }
+    );
+}
+
+// Calculate distance between two coordinates (Haversine formula)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of the Earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    return distance;
+}
+
+// Filter alerts within 100km and calculate distances
+function filterAndUpdateAlerts() {
+    if (!userLocation || alerts.length === 0) {
+        return;
+    }
+    
+    // Calculate distances for all alerts with coordinates
+    alerts.forEach(alert => {
+        if (alert.coordinates) {
+            const distance = calculateDistance(
+                userLocation.lat,
+                userLocation.lng,
+                alert.coordinates[1],
+                alert.coordinates[0]
+            );
+            alert.distance = distance;
+        }
+    });
+    
+    // Filter alerts within 100km
+    const filteredAlerts = alerts.filter(alert => 
+        alert.distance && alert.distance <= 100
+    );
+    
+    // Sort by distance
+    filteredAlerts.sort((a, b) => a.distance - b.distance);
+    
+    // Update display
+    displayAlerts(filteredAlerts);
+    
+    // Fit map to show user location and all filtered alerts
+    if (filteredAlerts.length > 0) {
+        const bounds = new mapboxgl.LngLatBounds();
+        bounds.extend([userLocation.lng, userLocation.lat]);
+        
+        markers.forEach((marker, index) => {
+            if (filteredAlerts.some(alert => alerts.indexOf(alert) === marker.alertIndex)) {
+                bounds.extend(marker.getLngLat());
+            }
+        });
+        
+        map.fitBounds(bounds, { padding: 50, maxZoom: 12 });
+    }
+}
+
+// Get route from user to alert location
+async function getRoute(alertCoordinates) {
+    if (!userLocation) {
+        return null;
+    }
+    
+    try {
+        const query = await fetch(
+            `https://api.mapbox.com/directions/v5/mapbox/driving/${userLocation.lng},${userLocation.lat};${alertCoordinates[0]},${alertCoordinates[1]}?geometries=geojson&access_token=${mapboxgl.accessToken}`,
+            { method: 'GET' }
+        );
+        
+        const json = await query.json();
+        
+        if (json.routes && json.routes.length > 0) {
+            const data = json.routes[0];
+            return {
+                geometry: data.geometry,
+                distance: (data.distance / 1000).toFixed(1), // Convert to km
+                duration: Math.round(data.duration / 60) // Convert to minutes
+            };
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error fetching route:', error);
+        return null;
+    }
+}
+
+// Display route on map
+async function displayRoute(alertIndex) {
+    if (!userLocation || !alerts[alertIndex] || !alerts[alertIndex].coordinates) {
+        return;
+    }
+    
+    // Remove existing route layer if present
+    if (map.getLayer('route')) {
+        map.removeLayer('route');
+    }
+    if (map.getSource('route')) {
+        map.removeSource('route');
+    }
+    
+    const route = await getRoute(alerts[alertIndex].coordinates);
+    
+    if (route) {
+        // Add route layer
+        map.addLayer({
+            id: 'route',
+            type: 'line',
+            source: {
+                type: 'geojson',
+                data: {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: route.geometry
+                }
+            },
+            layout: {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            paint: {
+                'line-color': '#1976d2',
+                'line-width': 3,
+                'line-opacity': 0.6
+            }
+        });
+        
+        // Update alert with road distance
+        alerts[alertIndex].roadDistance = route.distance;
+        alerts[alertIndex].roadDuration = route.duration;
+        
+        // Update the display to show road distance
+        const alertItem = document.querySelector(`[data-alert-id="${alertIndex}"]`);
+        if (alertItem) {
+            const distanceEl = alertItem.querySelector('.alert-distance');
+            if (distanceEl) {
+                distanceEl.textContent = `📍 ${route.distance} km (${route.duration} min by road)`;
+            }
+        }
+    }
+}
+
 // Display alerts in the sidebar
 function displayAlerts(alerts) {
     const alertsList = document.getElementById('alertsList');
@@ -177,13 +398,21 @@ function displayAlerts(alerts) {
         return;
     }
     
-    alertsList.innerHTML = alerts.map((alert, index) => `
-        <div class="alert-item" data-alert-id="${index}" onclick="selectAlert(${index})">
-            <div class="alert-location">${alert.location || 'Location Unknown'}</div>
-            <div class="alert-message">${alert.message}</div>
-            <div class="alert-time">${formatTime(alert.timestamp)}</div>
-        </div>
-    `).join('');
+    alertsList.innerHTML = alerts.map((alert, index) => {
+        let distanceHtml = '';
+        if (alert.distance !== undefined) {
+            distanceHtml = `<div class="alert-distance">📍 ${alert.distance.toFixed(1)} km away (straight line)</div>`;
+        }
+        
+        return `
+            <div class="alert-item" data-alert-id="${index}" onclick="selectAlert(${index})">
+                <div class="alert-location">${alert.location || 'Location Unknown'}</div>
+                <div class="alert-message">${alert.message}</div>
+                <div class="alert-time">${formatTime(alert.timestamp)}</div>
+                ${distanceHtml}
+            </div>
+        `;
+    }).join('');
 }
 
 // Update map with alert markers
@@ -259,6 +488,11 @@ function selectAlert(index) {
             zoom: 12
         });
         marker.togglePopup();
+    }
+    
+    // If user location is available, show route
+    if (userLocation && alerts[index] && alerts[index].coordinates) {
+        displayRoute(index);
     }
 }
 
