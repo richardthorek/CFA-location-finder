@@ -6,6 +6,7 @@ A real-time fire alert map for Victoria, Australia. This application displays Co
 
 - 🗺️ Interactive map displaying fire alert locations
 - 🔄 Real-time feed updates from CFA
+- ⏱️ Auto-refresh every 1 minute
 - 📍 Automatic location parsing and geocoding
 - 🚒 Alert details with timestamps
 - 📱 Responsive design for mobile and desktop
@@ -96,9 +97,10 @@ For the Azure Function, you can set environment variables in the Azure Portal:
 
 1. Open the application in your browser
 2. The map will automatically load with the Victoria region centered
-3. Click "Refresh Alerts" to fetch the latest CFA alerts
-4. Click on any alert in the sidebar to view it on the map
-5. Click on map markers to see alert details in a popup
+3. Alerts automatically refresh every 1 minute
+4. Click "Refresh Alerts" to manually fetch the latest CFA alerts
+5. Click on any alert in the sidebar to view it on the map
+6. Click on map markers to see alert details in a popup
 
 ## Feed Format
 
@@ -128,6 +130,7 @@ Edit `app.js` to configure:
 - Initial map center and zoom
 - Map style (change MapBox style)
 - Marker colors and popups
+- Auto-refresh interval (default: 60000ms = 1 minute)
 
 ### Alert Parsing
 

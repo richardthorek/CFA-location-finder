@@ -7,7 +7,9 @@ const CONFIG = {
     mapCenter: [144.9631, -37.8136],
     mapZoom: 7,
     // Azure Function endpoint - will need to be updated after deployment
-    apiEndpoint: '/api/getCFAFeed'
+    apiEndpoint: '/api/getCFAFeed',
+    // Auto-refresh interval in milliseconds (1 minute)
+    refreshInterval: 60000
 };
 
 // State
@@ -15,12 +17,14 @@ let map;
 let markers = [];
 let alerts = [];
 let selectedAlertId = null;
+let refreshIntervalId = null;
 
 // Initialize the application
 function init() {
     initMap();
     setupEventListeners();
     loadAlerts();
+    startAutoRefresh();
 }
 
 // Initialize MapBox map
@@ -274,6 +278,31 @@ function getMockAlerts() {
             coordinates: [144.3631, -38.1499]
         }
     ];
+}
+
+// Start auto-refresh at configured interval
+function startAutoRefresh() {
+    // Clear any existing interval
+    if (refreshIntervalId) {
+        clearInterval(refreshIntervalId);
+    }
+    
+    // Set up new interval to refresh alerts every minute
+    refreshIntervalId = setInterval(() => {
+        console.log('Auto-refreshing alerts...');
+        loadAlerts();
+    }, CONFIG.refreshInterval);
+    
+    console.log(`Auto-refresh enabled: updating every ${CONFIG.refreshInterval / 1000} seconds`);
+}
+
+// Stop auto-refresh (if needed for cleanup)
+function stopAutoRefresh() {
+    if (refreshIntervalId) {
+        clearInterval(refreshIntervalId);
+        refreshIntervalId = null;
+        console.log('Auto-refresh disabled');
+    }
 }
 
 // Initialize when DOM is ready
