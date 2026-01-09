@@ -138,7 +138,21 @@ header p {
     color: #d32f2f;
 }
 
-#alertsList {
+/* Feed sections */
+.feed-section {
+    margin-bottom: 30px;
+}
+
+.feed-header {
+    font-size: 1.1em;
+    margin-bottom: 12px;
+    color: #333;
+    padding: 8px 0;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+#cfaAlertsList,
+#emergencyIncidentsList {
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -152,6 +166,55 @@ header p {
     cursor: pointer;
     transition: all 0.3s;
     position: relative;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+/* CFA alerts styling */
+.cfa-alert {
+    border-left-color: #2196F3;
+}
+
+.cfa-alert:hover {
+    background: #e3f2fd;
+}
+
+.cfa-alert.selected {
+    background: #bbdefb;
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+}
+
+/* Emergency incidents styling */
+.emergency-incident:hover {
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.emergency-incident.selected {
+    background: #ffebee;
+    box-shadow: 0 2px 8px rgba(211, 47, 47, 0.2);
+}
+
+/* Alert icons */
+.alert-icon {
+    font-size: 2em;
+    flex-shrink: 0;
+    width: 40px;
+    text-align: center;
+}
+
+.pager-icon {
+    color: #2196F3;
+}
+
+.triangle-icon {
+    font-size: 2.5em;
+}
+
+/* Alert content */
+.alert-content {
+    flex: 1;
 }
 
 .alert-item:hover {
@@ -190,6 +253,30 @@ header p {
 .alert-item[data-warning-level="emergency"] .alert-warning-badge {
     background-color: #D6001C;  /* Hazard Red */
     color: #fff;  /* White text for red tier */
+}
+
+/* Source badges to distinguish between CFA alerts and Emergency Victoria incidents */
+.alert-source-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    font-weight: 600;
+    margin-left: 5px;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.source-badge-cfa {
+    background-color: #2196F3;  /* Blue for CFA alerts */
+    color: #fff;
+    border: 1px solid #1976D2;
+}
+
+.source-badge-emergency {
+    background-color: #4CAF50;  /* Green for Emergency VIC */
+    color: #fff;
+    border: 1px solid #388E3C;
 }
 
 .alert-location {
@@ -250,6 +337,13 @@ header p {
     font-size: 1.1em;
 }
 
+.popup-type {
+    font-weight: bold;
+    color: #2196F3;
+    margin-bottom: 6px;
+    font-size: 0.95em;
+}
+
 .popup-message {
     color: #666;
     font-size: 0.9em;
@@ -260,6 +354,24 @@ header p {
 .popup-time {
     font-size: 0.8em;
     color: #999;
+}
+
+.popup-warning {
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+    text-align: center;
+    border: 1px solid #000;
+    font-size: 0.85em;
+    text-transform: uppercase;
+}
+
+.popup-incident-name {
+    font-size: 0.85em;
+    color: #666;
+    font-style: italic;
+    margin-bottom: 6px;
 }
 
 /* Custom marker styles */
@@ -276,10 +388,25 @@ header p {
 
 .custom-marker.marker-selected .marker-icon {
     transform: scale(1.3);
+}
+
+/* CFA marker selection */
+.cfa-marker.marker-selected .marker-icon {
+    filter: drop-shadow(0 0 8px rgba(33, 150, 243, 0.8));
+}
+
+.cfa-marker.marker-selected .marker-info {
+    border-color: #2196F3;
+    background: #e3f2fd;
+    box-shadow: 0 4px 8px rgba(33, 150, 243, 0.4);
+}
+
+/* Emergency marker selection */
+.emergency-marker.marker-selected .marker-icon {
     filter: drop-shadow(0 0 8px rgba(211, 47, 47, 0.8));
 }
 
-.custom-marker.marker-selected .marker-info {
+.emergency-marker.marker-selected .marker-info {
     border-color: #d32f2f;
     background: #ffebee;
     box-shadow: 0 4px 8px rgba(211, 47, 47, 0.4);
@@ -289,6 +416,10 @@ header p {
     font-size: 2em;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     transition: transform 0.2s, filter 0.2s;
+}
+
+.triangle-marker {
+    font-size: 2.5em;
 }
 
 .custom-marker:hover .marker-icon {
