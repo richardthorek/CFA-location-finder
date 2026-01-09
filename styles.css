@@ -158,12 +158,6 @@ header p {
     gap: 12px;
 }
 
-#alertsList {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
 .alert-item {
     padding: 15px;
     background: #f9f9f9;
