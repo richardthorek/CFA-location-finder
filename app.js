@@ -605,15 +605,17 @@ function filterAndUpdateAlerts() {
     // Build combined array efficiently without intermediate spreads
     const allAlertsWithDistance = [];
     
-    for (const alert of cfaAlerts) {
+    for (let i = 0; i < cfaAlerts.length; i++) {
+        const alert = cfaAlerts[i];
         if (alert.coordinates && alert.distance !== undefined) {
-            allAlertsWithDistance.push({ ...alert, feedType: 'cfa' });
+            allAlertsWithDistance.push({ ...alert, feedType: 'cfa', originalIndex: i });
         }
     }
     
-    for (const incident of emergencyIncidents) {
+    for (let i = 0; i < emergencyIncidents.length; i++) {
+        const incident = emergencyIncidents[i];
         if (incident.coordinates && incident.distance !== undefined) {
-            allAlertsWithDistance.push({ ...incident, feedType: 'emergency' });
+            allAlertsWithDistance.push({ ...incident, feedType: 'emergency', originalIndex: i });
         }
     }
     
@@ -667,6 +669,9 @@ async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidents
         const alert = cfaAlertsFiltered[i];
         
         if (alert.coordinates) {
+            // Use originalIndex if available (for filtered alerts), otherwise use i
+            const alertIndex = alert.originalIndex !== undefined ? alert.originalIndex : i;
+            
             // Calculate opacity and color based on age
             const opacity = calculateAlertOpacity(alert.timestamp, 'advice');
             const recencyColor = getAlertColorByRecency(alert.timestamp);
@@ -676,7 +681,7 @@ async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidents
             markerEl.className = 'custom-marker cfa-marker';
             markerEl.setAttribute('role', 'button');
             markerEl.setAttribute('aria-label', `CFA alert at ${alert.location || 'unknown location'}`);
-            markerEl.setAttribute('data-alert-index', `cfa-${i}`);
+            markerEl.setAttribute('data-alert-index', `cfa-${alertIndex}`);
             markerEl.style.opacity = opacity;
             
             // Create marker icon (pager icon) with recency color
@@ -708,10 +713,10 @@ async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidents
             markerEl.appendChild(iconDiv);
             markerEl.appendChild(infoDiv);
             
-            // Add click handler to marker element
+            // Add click handler to marker element - use alertIndex to match original array
             markerEl.addEventListener('click', (e) => {
                 e.stopPropagation();
-                selectCFAAlert(i);
+                selectCFAAlert(alertIndex);
             });
             
             const marker = new mapboxgl.Marker({ 
@@ -735,7 +740,7 @@ async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidents
                 .addTo(map);
             
             markers.push(marker);
-            alertToMarkerMap.set(`cfa-${i}`, marker);
+            alertToMarkerMap.set(`cfa-${alertIndex}`, marker);
         }
     }
     
@@ -744,6 +749,9 @@ async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidents
         const incident = emergencyIncidentsFiltered[i];
         
         if (incident.coordinates) {
+            // Use originalIndex if available (for filtered alerts), otherwise use i
+            const incidentIndex = incident.originalIndex !== undefined ? incident.originalIndex : i;
+            
             const warningLevel = incident.warningLevel || 'advice';
             const warningStyle = getWarningStyle(warningLevel);
             const opacity = calculateAlertOpacity(incident.timestamp, warningLevel);
@@ -755,7 +763,7 @@ async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidents
             markerEl.className = 'custom-marker emergency-marker';
             markerEl.setAttribute('role', 'button');
             markerEl.setAttribute('aria-label', `Emergency incident at ${incident.location || 'unknown location'}`);
-            markerEl.setAttribute('data-alert-index', `emergency-${i}`);
+            markerEl.setAttribute('data-alert-index', `emergency-${incidentIndex}`);
             markerEl.setAttribute('data-warning-level', warningLevel);
             markerEl.style.opacity = opacity;
             
@@ -797,10 +805,10 @@ async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidents
             markerEl.appendChild(iconDiv);
             markerEl.appendChild(infoDiv);
             
-            // Add click handler to marker element
+            // Add click handler to marker element - use incidentIndex to match original array
             markerEl.addEventListener('click', (e) => {
                 e.stopPropagation();
-                selectEmergencyIncident(i);
+                selectEmergencyIncident(incidentIndex);
             });
             
             const marker = new mapboxgl.Marker({ 
@@ -826,7 +834,7 @@ async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidents
                 .addTo(map);
             
             markers.push(marker);
-            alertToMarkerMap.set(`emergency-${i}`, marker);
+            alertToMarkerMap.set(`emergency-${incidentIndex}`, marker);
         }
     }
 }
@@ -889,11 +897,14 @@ function displayCFAAlerts(alertsToDisplay) {
         // Calculate opacity based on age (CFA alerts don't have warning levels)
         const opacity = calculateAlertOpacity(alert.timestamp, 'advice');
         
+        // Use originalIndex if available (for filtered alerts), otherwise use index
+        const alertIndex = alert.originalIndex !== undefined ? alert.originalIndex : index;
+        
         return `
             <div class="alert-item cfa-alert" 
-                 data-alert-id="${index}" 
+                 data-alert-id="${alertIndex}" 
                  data-feed-type="cfa" 
-                 onclick="selectCFAAlert(${index})"
+                 onclick="selectCFAAlert(${alertIndex})"
                  role="listitem"
                  tabindex="0"
                  aria-label="CFA alert at ${alert.location || 'unknown location'}"
@@ -952,12 +963,15 @@ function displayEmergencyIncidents(incidentsToDisplay) {
         const agencyInfo = incident.agency || 'Unknown';
         const sourceBadge = `<span class="source-badge source-${sourceLabel.toLowerCase()}" title="${agencyInfo}">${sourceLabel}</span>`;
         
+        // Use originalIndex if available (for filtered alerts), otherwise use index
+        const incidentIndex = incident.originalIndex !== undefined ? incident.originalIndex : index;
+        
         return `
             <div class="alert-item emergency-incident" 
-                 data-alert-id="${index}" 
+                 data-alert-id="${incidentIndex}" 
                  data-feed-type="emergency" 
                  data-warning-level="${warningLevel}" 
-                 onclick="selectEmergencyIncident(${index})"
+                 onclick="selectEmergencyIncident(${incidentIndex})"
                  role="listitem"
                  tabindex="0"
                  aria-label="Emergency incident, ${warningStyle.label}, at ${incident.location || 'unknown location'}"
