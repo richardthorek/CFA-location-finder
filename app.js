@@ -108,7 +108,10 @@ async function loadAlerts() {
         alertsData.sort((a, b) => {
             const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
             const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-            return timeB - timeA;
+            // Handle NaN cases by treating them as 0
+            const validTimeA = isNaN(timeA) ? 0 : timeA;
+            const validTimeB = isNaN(timeB) ? 0 : timeB;
+            return validTimeB - validTimeA;
         });
         
         // Limit to 20 most recent alerts
@@ -578,7 +581,7 @@ async function updateMap(alerts) {
             const infoDiv = document.createElement('div');
             infoDiv.className = 'marker-info';
             
-            // Create location text
+            // Create location text (textContent automatically escapes HTML)
             const locationDiv = document.createElement('div');
             locationDiv.className = 'marker-location';
             locationDiv.textContent = alert.location || 'Unknown';
