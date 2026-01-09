@@ -291,9 +291,9 @@ function filterAndUpdateAlerts() {
         const bounds = new mapboxgl.LngLatBounds();
         bounds.extend([userLocation.lng, userLocation.lat]);
         
-        markers.forEach((marker, index) => {
-            if (filteredAlerts.some(alert => alerts.indexOf(alert) === marker.alertIndex)) {
-                bounds.extend(marker.getLngLat());
+        filteredAlerts.forEach(alert => {
+            if (alert.coordinates) {
+                bounds.extend(alert.coordinates);
             }
         });
         
@@ -387,25 +387,31 @@ async function displayRoute(alertIndex) {
 }
 
 // Display alerts in the sidebar
-function displayAlerts(alerts) {
+function displayAlerts(alertsToDisplay) {
     const alertsList = document.getElementById('alertsList');
     const alertCount = document.getElementById('alertCount');
     
-    alertCount.textContent = alerts.length;
+    alertCount.textContent = alertsToDisplay.length;
     
-    if (alerts.length === 0) {
-        alertsList.innerHTML = '<div class="no-alerts">No active alerts at this time</div>';
+    if (alertsToDisplay.length === 0) {
+        const noAlertsMsg = userLocation ? 
+            'No active alerts within 100km' : 
+            'No active alerts at this time';
+        alertsList.innerHTML = `<div class="no-alerts">${noAlertsMsg}</div>`;
         return;
     }
     
-    alertsList.innerHTML = alerts.map((alert, index) => {
+    alertsList.innerHTML = alertsToDisplay.map((alert) => {
+        // Find the original index in the global alerts array
+        const originalIndex = alerts.indexOf(alert);
+        
         let distanceHtml = '';
         if (alert.distance !== undefined) {
             distanceHtml = `<div class="alert-distance">📍 ${alert.distance.toFixed(1)} km away (straight line)</div>`;
         }
         
         return `
-            <div class="alert-item" data-alert-id="${index}" onclick="selectAlert(${index})">
+            <div class="alert-item" data-alert-id="${originalIndex}" onclick="selectAlert(${originalIndex})">
                 <div class="alert-location">${alert.location || 'Location Unknown'}</div>
                 <div class="alert-message">${alert.message}</div>
                 <div class="alert-time">${formatTime(alert.timestamp)}</div>

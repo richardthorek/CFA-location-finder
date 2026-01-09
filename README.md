@@ -5,6 +5,10 @@ A real-time fire alert map for Victoria, Australia. This application displays Co
 ## Features
 
 - 🗺️ Interactive map displaying fire alert locations
+- 📍 **User location detection** - Detect and center on your current location
+- 🎯 **Smart filtering** - Automatically show incidents within 100km radius
+- 📏 **Distance calculation** - See how far each incident is from your location
+- 🛣️ **Route display** - View driving routes and travel times to selected incidents
 - 🔄 Real-time feed updates from CFA
 - ⏱️ Auto-refresh every 1 minute
 - 📍 Automatic location parsing and geocoding
@@ -168,10 +172,19 @@ See the [Environment Variables](#environment-variables) section above for detail
 
 1. Open the application in your browser
 2. The map will automatically load with the Victoria region centered
-3. Alerts automatically refresh every 1 minute
-4. Click "Refresh Alerts" to manually fetch the latest CFA alerts
-5. Click on any alert in the sidebar to view it on the map
-6. Click on map markers to see alert details in a popup
+3. **Click "Locate Me"** to detect your current location and filter nearby incidents
+4. When location is detected:
+   - Map centers on your location with a blue marker
+   - Only incidents within 100km are shown
+   - Distances are displayed for each alert
+   - Alerts are sorted by distance (nearest first)
+5. Alerts automatically refresh every 1 minute
+6. Click "Refresh Alerts" to manually fetch the latest CFA alerts
+7. Click on any alert in the sidebar to view it on the map
+8. When an alert is selected and you've enabled location:
+   - A blue route line shows the driving path from your location
+   - Distance and estimated travel time are displayed
+9. Click on map markers to see alert details in a popup
 
 ## Feed Format
 
