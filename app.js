@@ -106,8 +106,8 @@ async function loadAlerts() {
         
         // Sort alerts by timestamp (most recent first)
         alertsData.sort((a, b) => {
-            const timeA = (a.timestamp ? new Date(a.timestamp).getTime() : 0) || 0;
-            const timeB = (b.timestamp ? new Date(b.timestamp).getTime() : 0) || 0;
+            const timeA = new Date(a.timestamp).getTime() || 0;
+            const timeB = new Date(b.timestamp).getTime() || 0;
             return timeB - timeA;
         });
         
@@ -581,11 +581,14 @@ async function updateMap(alerts) {
             // Create custom marker element
             const markerEl = document.createElement('div');
             markerEl.className = 'custom-marker';
+            markerEl.setAttribute('role', 'button');
+            markerEl.setAttribute('aria-label', `Fire alert at ${alert.location || 'unknown location'}`);
             
             // Create marker icon
             const iconDiv = document.createElement('div');
             iconDiv.className = 'marker-icon';
             iconDiv.textContent = '🔥';
+            iconDiv.setAttribute('aria-hidden', 'true');
             
             // Create marker info container
             const infoDiv = document.createElement('div');
