@@ -7,12 +7,24 @@ module.exports = async function (context, req) {
 
     try {
         // Get MapBox token from environment variable
-        // Falls back to a placeholder if not configured
-        const mapboxToken = process.env.MAPBOX_TOKEN || 'MAPBOX_TOKEN_NOT_CONFIGURED';
+        const mapboxToken = process.env.MAPBOX_TOKEN;
 
-        // Validate that token is configured
-        if (mapboxToken === 'MAPBOX_TOKEN_NOT_CONFIGURED') {
-            context.log.warn('MAPBOX_TOKEN environment variable is not configured');
+        // Return error if token is not configured
+        if (!mapboxToken) {
+            context.log.error('MAPBOX_TOKEN environment variable is not configured');
+            
+            context.res = {
+                status: 500,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                body: JSON.stringify({
+                    error: 'Configuration error',
+                    message: 'Server configuration is incomplete. Please contact the administrator.'
+                })
+            };
+            return;
         }
 
         // Return configuration object
@@ -31,7 +43,7 @@ module.exports = async function (context, req) {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET',
                 'Access-Control-Allow-Headers': 'Content-Type',
-                'Cache-Control': 'public, max-age=300' // Cache for 5 minutes
+                'Cache-Control': 'private, max-age=300' // Private cache for 5 minutes
             },
             body: JSON.stringify(config)
         };
@@ -47,7 +59,7 @@ module.exports = async function (context, req) {
             },
             body: JSON.stringify({
                 error: 'Failed to load configuration',
-                message: error.message
+                message: 'An unexpected error occurred. Please try again later.'
             })
         };
     }

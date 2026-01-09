@@ -14,7 +14,6 @@ let markers = [];
 let alerts = [];
 let selectedAlertId = null;
 let refreshIntervalId = null;
-let configLoaded = false;
 
 // Load configuration from API
 async function loadConfig() {
@@ -33,12 +32,10 @@ async function loadConfig() {
             ...config
         };
         
-        configLoaded = true;
         console.log('Configuration loaded from API');
         return true;
     } catch (error) {
         console.warn('Failed to load configuration from API, using fallback values:', error);
-        configLoaded = true; // Continue with fallback values
         return false;
     }
 }
