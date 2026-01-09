@@ -16,7 +16,6 @@ let selectedAlertId = null;
 let refreshIntervalId = null;
 let userLocation = null;
 let userMarker = null;
-let routeLayer = null;
 
 // Load configuration from API
 async function loadConfig() {
