@@ -17,6 +17,7 @@ let refreshIntervalId = null;
 let userLocation = null;
 let userMarker = null;
 let autoZoomEnabled = true; // Track if auto-zoom is enabled
+let alertToMarkerMap = new Map(); // Maps alert global index to marker
 
 // Load configuration from API
 async function loadConfig() {
@@ -420,6 +421,9 @@ function filterAndUpdateAlerts() {
     // Update display
     displayAlerts(filteredAlerts);
     
+    // Update map to show only filtered alerts
+    updateMap(filteredAlerts);
+    
     // Fit map to show user location and all filtered alerts
     if (filteredAlerts.length > 0) {
         const bounds = new mapboxgl.LngLatBounds();
@@ -556,14 +560,15 @@ function displayAlerts(alertsToDisplay) {
 }
 
 // Update map with alert markers
-async function updateMap(alerts) {
-    // Clear existing markers
+async function updateMap(alertsToShow) {
+    // Clear existing markers and mapping
     markers.forEach(marker => marker.remove());
     markers = [];
+    alertToMarkerMap.clear();
     
     // Add new markers
-    for (let i = 0; i < alerts.length; i++) {
-        const alert = alerts[i];
+    for (let i = 0; i < alertsToShow.length; i++) {
+        const alert = alertsToShow[i];
         
         if (!alert.coordinates) {
             // Try to geocode the location
@@ -578,11 +583,15 @@ async function updateMap(alerts) {
         }
         
         if (alert.coordinates) {
+            // Find the global index of this alert in the main alerts array
+            const globalIndex = alerts.indexOf(alert);
+            
             // Create custom marker element
             const markerEl = document.createElement('div');
             markerEl.className = 'custom-marker';
             markerEl.setAttribute('role', 'button');
             markerEl.setAttribute('aria-label', `Fire alert at ${alert.location || 'unknown location'}`);
+            markerEl.setAttribute('data-alert-index', globalIndex);
             
             // Create marker icon
             const iconDiv = document.createElement('div');
@@ -624,8 +633,9 @@ async function updateMap(alerts) {
             
             markers.push(marker);
             
-            // Store index for selection
-            marker.alertIndex = i;
+            // Store global index for selection - map alert's global index to this marker
+            marker.alertIndex = globalIndex;
+            alertToMarkerMap.set(globalIndex, marker);
         }
     }
     
@@ -640,31 +650,53 @@ async function updateMap(alerts) {
 }
 
 // Select an alert
-function selectAlert(index) {
-    selectedAlertId = index;
+function selectAlert(globalAlertIndex) {
+    selectedAlertId = globalAlertIndex;
     
-    // Update UI
-    document.querySelectorAll('.alert-item').forEach((item, i) => {
-        if (i === index) {
+    // Find the marker corresponding to this alert using the map
+    const marker = alertToMarkerMap.get(globalAlertIndex);
+    
+    // Early return if marker doesn't exist
+    if (!marker) {
+        console.warn(`No marker found for alert index ${globalAlertIndex}`);
+        return;
+    }
+    
+    // Update UI - find the card with this alert index and select it
+    document.querySelectorAll('.alert-item').forEach((item) => {
+        const itemAlertId = parseInt(item.getAttribute('data-alert-id'));
+        if (itemAlertId === globalAlertIndex) {
             item.classList.add('selected');
         } else {
             item.classList.remove('selected');
         }
     });
     
+    // Clear any previous selection styling
+    document.querySelectorAll('.custom-marker').forEach(m => {
+        m.classList.remove('marker-selected');
+    });
+    
+    // Add selection styling to the marker
+    const markerEl = marker.getElement();
+    if (markerEl) {
+        markerEl.classList.add('marker-selected');
+    }
+    
     // Pan to marker and show popup
-    if (markers[index]) {
-        const marker = markers[index];
-        map.flyTo({
-            center: marker.getLngLat(),
-            zoom: 12
-        });
+    map.flyTo({
+        center: marker.getLngLat(),
+        zoom: 12
+    });
+    
+    // Open the popup if not already open
+    if (!marker.getPopup().isOpen()) {
         marker.togglePopup();
     }
     
     // If user location is available, show route
-    if (userLocation && alerts[index] && alerts[index].coordinates) {
-        displayRoute(index);
+    if (userLocation && alerts[globalAlertIndex] && alerts[globalAlertIndex].coordinates) {
+        displayRoute(globalAlertIndex);
     }
 }
 
