@@ -188,14 +188,15 @@ function getUserLocation() {
     
     if (!navigator.geolocation) {
         console.warn('Geolocation is not supported by your browser');
-        // Update button to show it's disabled
+        // Disable button and update appearance
         locateBtn.disabled = true;
-        locateBtn.textContent = '📍 Location Unavailable';
+        locateIcon.textContent = '❌';
         autoZoomEnabled = false;
         return;
     }
     
-    locateIcon.textContent = '⏳';
+    // Show loading state
+    updateLocateButton();
     
     navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -281,11 +282,17 @@ function updateLocateButton() {
     const locateBtn = document.getElementById('locateBtn');
     const locateIcon = document.getElementById('locateIcon');
     
+    // If location hasn't been obtained yet, show waiting state
     if (!userLocation) {
-        locateIcon.textContent = '📍';
-        locateBtn.classList.remove('btn-locate-disabled');
+        locateIcon.textContent = '⏳';
+        locateBtn.classList.add('btn-locate-disabled');
+        locateBtn.title = 'Detecting location...';
+        locateBtn.disabled = true;
         return;
     }
+    
+    // Location obtained - enable button and show toggle state
+    locateBtn.disabled = false;
     
     if (autoZoomEnabled) {
         locateIcon.textContent = '📍';
