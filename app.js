@@ -388,34 +388,8 @@ function parseLocation(message) {
     return null;
 }
 
-// Geocode location using MapBox API
-async function geocodeLocation(location) {
-    if (!location) return null;
-    
-    try {
-        const query = encodeURIComponent(`${location}, Victoria, Australia`);
-        const response = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapboxgl.accessToken}&country=AU&limit=1`
-        );
-        
-        if (!response.ok) throw new Error('Geocoding failed');
-        
-        const data = await response.json();
-        
-        if (data.features && data.features.length > 0) {
-            const feature = data.features[0];
-            return {
-                coordinates: feature.center,
-                placeName: feature.place_name
-            };
-        }
-        
-        return null;
-    } catch (error) {
-        console.error('Geocoding error for', location, ':', error);
-        return null;
-    }
-}
+// Note: Geocoding is now handled by the backend API to minimize Mapbox API calls
+// Alerts received from the backend already include coordinates
 
 // Get user's current location
 function getUserLocation() {
@@ -1142,18 +1116,8 @@ async function updateMapWithSeparateFeeds() {
     for (let i = 0; i < cfaAlerts.length; i++) {
         const alert = cfaAlerts[i];
         
-        if (!alert.coordinates) {
-            // Try to geocode the location
-            const location = parseLocation(alert.message);
-            if (location) {
-                const geocoded = await geocodeLocation(location);
-                if (geocoded) {
-                    alert.coordinates = geocoded.coordinates;
-                    alert.location = location;
-                }
-            }
-        }
-        
+        // Backend now handles geocoding, so coordinates should already be present
+        // Skip alerts without coordinates
         if (alert.coordinates) {
             // Calculate opacity and color based on age
             const opacity = calculateAlertOpacity(alert.timestamp, 'advice');

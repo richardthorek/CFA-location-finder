@@ -1,18 +1,49 @@
 // Using node-fetch v2 for compatibility with CommonJS modules in Azure Functions
 const fetch = require('node-fetch');
+const { shouldFetch, updateLastFetch, getCachedFeed, cacheFeed } = require('../shared/storageService');
+const { enrichAlertsWithCoordinates } = require('../shared/geocodingService');
+
+const FEED_TYPE = 'EMERGENCY';
 
 /**
  * Azure Function to fetch and parse Emergency Victoria and NSW RFS RSS feeds
+ * Implements caching and rate limiting to minimize redundant fetches
  * This provides current fire incidents with coordinates and warning levels
  */
 module.exports = async function (context, req) {
     context.log('Emergency Feed request received');
 
-    // Feed URLs
-    const EMERGENCY_VIC_FEED_URL = 'https://data.emergency.vic.gov.au/Show?pageId=getIncidentRSS';
-    const NSW_RFS_FEED_URL = 'https://www.rfs.nsw.gov.au/feeds/majorIncidents.xml';
-
     try {
+        // Check if we need to fetch fresh data or can use cache
+        const needsFetch = await shouldFetch(FEED_TYPE);
+        
+        if (!needsFetch) {
+            // Try to return cached data
+            const cached = await getCachedFeed(FEED_TYPE);
+            if (cached) {
+                context.log(`Returning cached Emergency feed with ${cached.length} incidents`);
+                context.res = {
+                    status: 200,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Methods': 'GET',
+                        'Access-Control-Allow-Headers': 'Content-Type',
+                        'X-Cache-Status': 'HIT'
+                    },
+                    body: JSON.stringify(cached)
+                };
+                return;
+            }
+        }
+        
+        // Fetch fresh data from sources
+        context.log('Fetching fresh Emergency feeds from sources');
+        
+        // Feed URLs
+        const EMERGENCY_VIC_FEED_URL = 'https://data.emergency.vic.gov.au/Show?pageId=getIncidentRSS';
+        const NSW_RFS_FEED_URL = 'https://www.rfs.nsw.gov.au/feeds/majorIncidents.xml';
+
         let allIncidents = [];
         
         // Fetch Emergency Victoria RSS feed (includes CFA current incidents)
@@ -96,36 +127,48 @@ module.exports = async function (context, req) {
         const cfaCount = allIncidents.filter(i => i.source === 'VIC').length;
         const nswCount = allIncidents.filter(i => i.source === 'NSW').length;
         context.log(`CFA/VIC incidents: ${cfaCount}, NSW incidents: ${nswCount}`);
+        
+        // Enrich incidents with geocoded coordinates where needed
+        // Emergency feeds often have coordinates, but this fills in any missing ones
+        allIncidents = await enrichAlertsWithCoordinates(allIncidents, FEED_TYPE, context);
+        
+        // Update fetch tracking
+        await updateLastFetch(FEED_TYPE);
+        
+        // Cache the enriched results
+        await cacheFeed(FEED_TYPE, allIncidents);
 
-        // If no incidents from either feed, return empty array
-        if (allIncidents.length === 0) {
-            context.log.warn('No incidents available from either feed');
-            context.res = {
-                status: 200,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET',
-                    'Access-Control-Allow-Headers': 'Content-Type'
-                },
-                body: JSON.stringify([])
-            };
-            return;
-        }
-
+        // Return the results
         context.res = {
             status: 200,
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET',
-                'Access-Control-Allow-Headers': 'Content-Type'
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'X-Cache-Status': 'MISS'
             },
             body: JSON.stringify(allIncidents)
         };
 
     } catch (error) {
         context.log.error('Error in Emergency feed handler:', error);
+        
+        // Try to return cached data as fallback
+        const cached = await getCachedFeed(FEED_TYPE);
+        if (cached) {
+            context.log('Returning stale cache due to fetch error');
+            context.res = {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'X-Cache-Status': 'STALE'
+                },
+                body: JSON.stringify(cached)
+            };
+            return;
+        }
         
         context.res = {
             status: 500,
