@@ -4,42 +4,54 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CFA Location Finder - Victoria Fire Alerts</title>
+    <meta name="description" content="Real-time fire alerts across Victoria, Australia. Track CFA pager alerts and emergency incidents on an interactive map.">
+    <meta name="theme-color" content="#FF4444">
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>📟 CFA Location Finder</h1>
+        <header role="banner">
+            <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+                <span id="themeIcon">🌙</span>
+                <span>Dark Mode</span>
+            </button>
+            <h1>🔥 CFA Location Finder</h1>
             <p>Real-time fire alerts across Victoria, Australia</p>
         </header>
         
         <div class="main-content">
-            <div id="map"></div>
+            <div id="map" role="application" aria-label="Interactive map showing fire alerts"></div>
             
-            <div class="sidebar">
+            <aside class="sidebar" role="complementary" aria-label="Fire alerts sidebar">
                 <div class="controls">
-                    <button id="locateBtn" class="btn btn-locate" title="Auto-zoom enabled">
-                        <span id="locateIcon">📍</span> Auto-Zoom
+                    <button id="locateBtn" class="btn btn-locate" title="Auto-zoom enabled" aria-pressed="true">
+                        <span id="locateIcon" aria-hidden="true">📍</span> 
+                        <span>Auto-Zoom</span>
                     </button>
-                    <button id="refreshBtn" class="btn">
-                        <span id="refreshIcon">🔄</span> Refresh Alerts
+                    <button id="refreshBtn" class="btn" aria-label="Refresh fire alerts">
+                        <span id="refreshIcon" aria-hidden="true">🔄</span> 
+                        <span>Refresh Alerts</span>
                     </button>
-                    <div id="lastUpdate" class="last-update"></div>
+                    <div id="lastUpdate" class="last-update" aria-live="polite"></div>
                 </div>
                 
-                <div class="alerts-container">
+                <div class="alerts-container" role="region" aria-label="Fire alerts list">
                     <div class="feed-section">
-                        <h2 class="feed-header">📟 CFA Pager Alerts (<span id="cfaAlertCount">0</span>)</h2>
-                        <div id="cfaAlertsList"></div>
+                        <h2 class="feed-header" id="cfaAlertsHeader">
+                            <span aria-hidden="true">📟</span> CFA Pager Alerts (<span id="cfaAlertCount">0</span>)
+                        </h2>
+                        <div id="cfaAlertsList" role="list" aria-labelledby="cfaAlertsHeader"></div>
                     </div>
                     
                     <div class="feed-section">
-                        <h2 class="feed-header">⚠️ Emergency Incidents (<span id="emergencyIncidentCount">0</span>)</h2>
-                        <div id="emergencyIncidentsList"></div>
+                        <h2 class="feed-header" id="emergencyIncidentsHeader">
+                            <span aria-hidden="true">⚠️</span> Emergency Incidents (<span id="emergencyIncidentCount">0</span>)
+                        </h2>
+                        <div id="emergencyIncidentsList" role="list" aria-labelledby="emergencyIncidentsHeader"></div>
                     </div>
                 </div>
-            </div>
+            </aside>
         </div>
     </div>
     
