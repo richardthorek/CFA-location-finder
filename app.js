@@ -653,6 +653,15 @@ async function updateMap(alertsToShow) {
 function selectAlert(globalAlertIndex) {
     selectedAlertId = globalAlertIndex;
     
+    // Find the marker corresponding to this alert using the map
+    const marker = alertToMarkerMap.get(globalAlertIndex);
+    
+    // Early return if marker doesn't exist
+    if (!marker) {
+        console.warn(`No marker found for alert index ${globalAlertIndex}`);
+        return;
+    }
+    
     // Update UI - find the card with this alert index and select it
     document.querySelectorAll('.alert-item').forEach((item) => {
         const itemAlertId = parseInt(item.getAttribute('data-alert-id'));
@@ -663,33 +672,26 @@ function selectAlert(globalAlertIndex) {
         }
     });
     
-    // Find the marker corresponding to this alert using the map
-    const marker = alertToMarkerMap.get(globalAlertIndex);
+    // Clear any previous selection styling
+    document.querySelectorAll('.custom-marker').forEach(m => {
+        m.classList.remove('marker-selected');
+    });
     
-    if (marker) {
-        // Clear any previous selection styling
-        document.querySelectorAll('.custom-marker').forEach(m => {
-            m.classList.remove('marker-selected');
-        });
-        
-        // Add selection styling to the marker
-        const markerEl = marker.getElement();
-        if (markerEl) {
-            markerEl.classList.add('marker-selected');
-        }
-        
-        // Pan to marker and show popup
-        map.flyTo({
-            center: marker.getLngLat(),
-            zoom: 12
-        });
-        
-        // Open the popup if not already open
-        if (!marker.getPopup().isOpen()) {
-            marker.togglePopup();
-        }
-    } else {
-        console.warn(`No marker found for alert index ${globalAlertIndex}`);
+    // Add selection styling to the marker
+    const markerEl = marker.getElement();
+    if (markerEl) {
+        markerEl.classList.add('marker-selected');
+    }
+    
+    // Pan to marker and show popup
+    map.flyTo({
+        center: marker.getLngLat(),
+        zoom: 12
+    });
+    
+    // Open the popup if not already open
+    if (!marker.getPopup().isOpen()) {
+        marker.togglePopup();
     }
     
     // If user location is available, show route
