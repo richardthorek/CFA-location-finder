@@ -512,7 +512,7 @@ function displayAlerts(alertsToDisplay) {
     
     if (alertsToDisplay.length === 0) {
         const noAlertsMsg = userLocation ? 
-            'No geocoded alerts found near you' : 
+            'No alerts found near you' : 
             'No active alerts at this time';
         alertsList.innerHTML = `<div class="no-alerts">${noAlertsMsg}</div>`;
         return;
@@ -544,8 +544,8 @@ async function updateMap(alerts) {
     markers.forEach(marker => marker.remove());
     markers = [];
     
-    // Add new markers (limit to 20)
-    for (let i = 0; i < Math.min(alerts.length, 20); i++) {
+    // Add new markers
+    for (let i = 0; i < alerts.length; i++) {
         const alert = alerts[i];
         
         if (!alert.coordinates) {
