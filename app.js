@@ -417,7 +417,7 @@ function toggleAutoZoom() {
         filterAndUpdateAlerts();
     } else if (!autoZoomEnabled) {
         // Show all alerts without filtering
-        displayAlerts(alerts);
+        displaySeparateFeeds();
     }
 }
 
@@ -559,62 +559,7 @@ async function getRoute(alertCoordinates) {
     }
 }
 
-// Display route on map
-async function displayRoute(alertIndex) {
-    if (!userLocation || !alerts[alertIndex] || !alerts[alertIndex].coordinates) {
-        return;
-    }
-    
-    // Remove existing route layer if present
-    if (map.getLayer('route')) {
-        map.removeLayer('route');
-    }
-    if (map.getSource('route')) {
-        map.removeSource('route');
-    }
-    
-    const route = await getRoute(alerts[alertIndex].coordinates);
-    
-    if (route) {
-        // Add route layer
-        map.addLayer({
-            id: 'route',
-            type: 'line',
-            source: {
-                type: 'geojson',
-                data: {
-                    type: 'Feature',
-                    properties: {},
-                    geometry: route.geometry
-                }
-            },
-            layout: {
-                'line-join': 'round',
-                'line-cap': 'round'
-            },
-            paint: {
-                'line-color': '#1976d2',
-                'line-width': 3,
-                'line-opacity': 0.6
-            }
-        });
-        
-        // Update alert with road distance
-        alerts[alertIndex].roadDistance = route.distance;
-        alerts[alertIndex].roadDuration = route.duration;
-        
-        // Update the display to show road distance
-        const alertItem = document.querySelector(`[data-alert-id="${alertIndex}"]`);
-        if (alertItem) {
-            const distanceEl = alertItem.querySelector('.alert-distance');
-            if (distanceEl) {
-                distanceEl.textContent = `📍 ${route.distance} km (${route.duration} min by road)`;
-            }
-        }
-    }
-}
-
-// Display alerts in the sidebar
+// Display alerts in the sidebar (legacy function - kept for backward compatibility but not used)
 function displayAlerts(alertsToDisplay) {
     const alertsList = document.getElementById('alertsList');
     const alertCount = document.getElementById('alertCount');
@@ -858,57 +803,6 @@ async function updateMap(alertsToShow) {
             bounds.extend(marker.getLngLat());
         });
         map.fitBounds(bounds, { padding: 50, maxZoom: 12 });
-    }
-}
-
-// Select an alert
-function selectAlert(globalAlertIndex) {
-    selectedAlertId = globalAlertIndex;
-    
-    // Find the marker corresponding to this alert using the map
-    const marker = alertToMarkerMap.get(globalAlertIndex);
-    
-    // Early return if marker doesn't exist
-    if (!marker) {
-        console.warn(`No marker found for alert index ${globalAlertIndex}`);
-        return;
-    }
-    
-    // Update UI - find the card with this alert index and select it
-    document.querySelectorAll('.alert-item').forEach((item) => {
-        const itemAlertId = parseInt(item.getAttribute('data-alert-id'));
-        if (itemAlertId === globalAlertIndex) {
-            item.classList.add('selected');
-        } else {
-            item.classList.remove('selected');
-        }
-    });
-    
-    // Clear any previous selection styling
-    document.querySelectorAll('.custom-marker').forEach(m => {
-        m.classList.remove('marker-selected');
-    });
-    
-    // Add selection styling to the marker
-    const markerEl = marker.getElement();
-    if (markerEl) {
-        markerEl.classList.add('marker-selected');
-    }
-    
-    // Pan to marker and show popup
-    map.flyTo({
-        center: marker.getLngLat(),
-        zoom: 12
-    });
-    
-    // Open the popup if not already open
-    if (!marker.getPopup().isOpen()) {
-        marker.togglePopup();
-    }
-    
-    // If user location is available, show route
-    if (userLocation && alerts[globalAlertIndex] && alerts[globalAlertIndex].coordinates) {
-        displayRoute(globalAlertIndex);
     }
 }
 
@@ -1229,8 +1123,18 @@ function formatTime(timestamp) {
 
 // Show error message
 function showError(message) {
-    const alertsList = document.getElementById('alertsList');
-    alertsList.innerHTML = `<div class="error-message">${message}</div>`;
+    // Show error in both feed sections
+    const cfaAlertsList = document.getElementById('cfaAlertsList');
+    const emergencyIncidentsList = document.getElementById('emergencyIncidentsList');
+    
+    const errorHtml = `<div class="error-message">${message}</div>`;
+    
+    if (cfaAlertsList) {
+        cfaAlertsList.innerHTML = errorHtml;
+    }
+    if (emergencyIncidentsList) {
+        emergencyIncidentsList.innerHTML = errorHtml;
+    }
 }
 
 // Mock data for testing when API is not available
