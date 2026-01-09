@@ -523,6 +523,7 @@ function toggleAutoZoom() {
     } else if (!autoZoomEnabled) {
         // Show all alerts without filtering
         displaySeparateFeeds();
+        updateMapWithSeparateFeeds();
     }
 }
 
@@ -636,6 +637,9 @@ function filterAndUpdateAlerts() {
     displayCFAAlerts(cfaAlertsFiltered);
     displayEmergencyIncidents(emergencyIncidentsFiltered);
     
+    // Update map markers with filtered alerts
+    updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidentsFiltered);
+    
     // Update map bounds to show user location and filtered items
     const bounds = new mapboxgl.LngLatBounds();
     bounds.extend([userLocation.lng, userLocation.lat]);
@@ -648,6 +652,182 @@ function filterAndUpdateAlerts() {
     
     if (closest20.length > 0) {
         map.fitBounds(bounds, { padding: 50, maxZoom: 12 });
+    }
+}
+
+// Update map with filtered alerts (used by auto-zoom)
+async function updateMapWithFilteredAlerts(cfaAlertsFiltered, emergencyIncidentsFiltered) {
+    // Clear existing markers and mapping
+    markers.forEach(marker => marker.remove());
+    markers = [];
+    alertToMarkerMap.clear();
+    
+    // Add CFA alert markers
+    for (let i = 0; i < cfaAlertsFiltered.length; i++) {
+        const alert = cfaAlertsFiltered[i];
+        
+        if (alert.coordinates) {
+            // Calculate opacity and color based on age
+            const opacity = calculateAlertOpacity(alert.timestamp, 'advice');
+            const recencyColor = getAlertColorByRecency(alert.timestamp);
+            
+            // Create custom marker element with pager icon
+            const markerEl = document.createElement('div');
+            markerEl.className = 'custom-marker cfa-marker';
+            markerEl.setAttribute('role', 'button');
+            markerEl.setAttribute('aria-label', `CFA alert at ${alert.location || 'unknown location'}`);
+            markerEl.setAttribute('data-alert-index', `cfa-${i}`);
+            markerEl.style.opacity = opacity;
+            
+            // Create marker icon (pager icon) with recency color
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'marker-icon';
+            iconDiv.textContent = '📟';
+            iconDiv.setAttribute('aria-hidden', 'true');
+            iconDiv.style.filter = `drop-shadow(0 0 3px ${recencyColor})`;
+            
+            // Create marker info container with recency color
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'marker-info';
+            infoDiv.style.borderColor = recencyColor;
+            
+            // Create location text with recency color
+            const locationDiv = document.createElement('div');
+            locationDiv.className = 'marker-location';
+            locationDiv.style.color = recencyColor;
+            locationDiv.textContent = alert.location || 'Unknown';
+            infoDiv.appendChild(locationDiv);
+            
+            // Create and add time text
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'marker-time';
+            timeDiv.textContent = formatTime(alert.timestamp);
+            infoDiv.appendChild(timeDiv);
+            
+            // Assemble the marker element
+            markerEl.appendChild(iconDiv);
+            markerEl.appendChild(infoDiv);
+            
+            // Add click handler to marker element
+            markerEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectCFAAlert(i);
+            });
+            
+            const marker = new mapboxgl.Marker({ 
+                element: markerEl,
+                anchor: 'center'
+            })
+                .setLngLat(alert.coordinates)
+                .setPopup(
+                    new mapboxgl.Popup({ 
+                        offset: 25,
+                        closeButton: true,
+                        closeOnClick: false
+                    })
+                        .setHTML(`
+                            <div class="popup-type">📟 CFA Alert</div>
+                            <div class="popup-location">${alert.location || 'Location Unknown'}</div>
+                            <div class="popup-message">${alert.message}</div>
+                            <div class="popup-time">${formatTime(alert.timestamp)}</div>
+                        `)
+                )
+                .addTo(map);
+            
+            markers.push(marker);
+            alertToMarkerMap.set(`cfa-${i}`, marker);
+        }
+    }
+    
+    // Add Emergency incident markers
+    for (let i = 0; i < emergencyIncidentsFiltered.length; i++) {
+        const incident = emergencyIncidentsFiltered[i];
+        
+        if (incident.coordinates) {
+            const warningLevel = incident.warningLevel || 'advice';
+            const warningStyle = getWarningStyle(warningLevel);
+            const opacity = calculateAlertOpacity(incident.timestamp, warningLevel);
+            const recencyColor = getAlertColorByRecency(incident.timestamp);
+            const displayColor = warningLevel === 'emergency' ? warningStyle.color : recencyColor;
+            
+            // Create custom marker element with triangle icon
+            const markerEl = document.createElement('div');
+            markerEl.className = 'custom-marker emergency-marker';
+            markerEl.setAttribute('role', 'button');
+            markerEl.setAttribute('aria-label', `Emergency incident at ${incident.location || 'unknown location'}`);
+            markerEl.setAttribute('data-alert-index', `emergency-${i}`);
+            markerEl.setAttribute('data-warning-level', warningLevel);
+            markerEl.style.opacity = opacity;
+            
+            // Create marker icon (triangle icon)
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'marker-icon triangle-marker';
+            iconDiv.textContent = '▲';
+            iconDiv.style.color = displayColor;
+            iconDiv.setAttribute('aria-hidden', 'true');
+            iconDiv.style.filter = `drop-shadow(0 0 3px ${recencyColor})`;
+            
+            // Create marker info container
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'marker-info';
+            infoDiv.style.borderColor = displayColor;
+            
+            // Create location text
+            const locationDiv = document.createElement('div');
+            locationDiv.className = 'marker-location';
+            locationDiv.style.color = displayColor;
+            locationDiv.textContent = incident.location || 'Unknown';
+            infoDiv.appendChild(locationDiv);
+            
+            // Add incident name if available
+            if (incident.incidentName) {
+                const incidentNameDiv = document.createElement('div');
+                incidentNameDiv.className = 'marker-incident-name';
+                incidentNameDiv.textContent = incident.incidentName;
+                infoDiv.appendChild(incidentNameDiv);
+            }
+            
+            // Create and add time text
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'marker-time';
+            timeDiv.textContent = formatTime(incident.timestamp);
+            infoDiv.appendChild(timeDiv);
+            
+            // Assemble the marker element
+            markerEl.appendChild(iconDiv);
+            markerEl.appendChild(infoDiv);
+            
+            // Add click handler to marker element
+            markerEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectEmergencyIncident(i);
+            });
+            
+            const marker = new mapboxgl.Marker({ 
+                element: markerEl,
+                anchor: 'center'
+            })
+                .setLngLat(incident.coordinates)
+                .setPopup(
+                    new mapboxgl.Popup({ 
+                        offset: 25,
+                        closeButton: true,
+                        closeOnClick: false
+                    })
+                        .setHTML(`
+                            <div class="popup-warning" style="background-color: ${warningStyle.color}; color: ${warningStyle.textColor};">${warningStyle.label}</div>
+                            <div class="popup-location">${incident.location || 'Location Unknown'}</div>
+                            ${incident.incidentName ? `<div class="popup-incident-name">${incident.incidentName}</div>` : ''}
+                            <div class="popup-message">${incident.message}</div>
+                            <div class="popup-time">${formatTime(incident.timestamp)}</div>
+                            <div class="popup-source">Source: ${incident.source === 'NSW' ? 'NSW RFS' : 'Emergency VIC'}</div>
+                        `)
+                )
+                .addTo(map);
+            
+            markers.push(marker);
+            alertToMarkerMap.set(`emergency-${i}`, marker);
+        }
     }
 }
 
@@ -1010,7 +1190,7 @@ async function updateMapWithSeparateFeeds() {
             
             const marker = new mapboxgl.Marker({ 
                 element: markerEl,
-                anchor: 'bottom' // Anchor at bottom to prevent jumping
+                anchor: 'center' // Center anchor keeps marker locked to exact coordinates
             })
                 .setLngLat(alert.coordinates)
                 .setPopup(
@@ -1109,7 +1289,7 @@ async function updateMapWithSeparateFeeds() {
             
             const marker = new mapboxgl.Marker({ 
                 element: markerEl,
-                anchor: 'bottom' // Anchor at bottom to prevent jumping
+                anchor: 'center' // Center anchor keeps marker locked to exact coordinates
             })
                 .setLngLat(incident.coordinates)
                 .setPopup(

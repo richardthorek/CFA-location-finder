@@ -1003,13 +1003,13 @@ header p {
     display: flex;
     flex-direction: column;
     align-items: center;
-    transition: all var(--transition-base);
+    /* CRITICAL: Keep marker static - no transforms or animations on parent element */
+    /* This ensures markers stay locked to geographic coordinates */
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
 }
 
 .custom-marker:hover {
     filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.3));
-    animation: markerBounce 0.5s ease-in-out;
 }
 
 /* Show label on hover */
@@ -1018,34 +1018,20 @@ header p {
     transform: scale(1);
 }
 
-@keyframes markerBounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
-}
-
+/* Selected marker gets elevated z-index but NO transform on parent */
 .custom-marker.marker-selected {
     z-index: 1000 !important;
-    animation: markerPulse 1.5s ease-in-out infinite;
 }
 
 /* Show label when selected */
 .custom-marker.marker-selected .marker-info {
     opacity: 1;
-    transform: scale(1.1);
+    transform: scale(1);
 }
 
-@keyframes markerPulse {
-    0%, 100% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.15);
-    }
-}
-
-/* CFA marker selection */
+/* CFA marker selection - static, no animation for reliability */
 .cfa-marker.marker-selected .marker-icon {
-    transform: scale(2.5); /* Increased from 1.4 for better visibility when selected */
+    transform: scale(2.5); /* Increased for better visibility when selected */
     filter: drop-shadow(0 0 12px rgba(52, 152, 219, 1));
 }
 
@@ -1056,9 +1042,9 @@ header p {
     box-shadow: 0 4px 16px rgba(52, 152, 219, 0.6);
 }
 
-/* Emergency marker selection */
+/* Emergency marker selection - static, no animation for reliability */
 .emergency-marker.marker-selected .marker-icon {
-    transform: scale(2.5); /* Increased from 1.4 for better visibility when selected */
+    transform: scale(2.5); /* Increased for better visibility when selected */
     filter: drop-shadow(0 0 12px rgba(255, 68, 68, 1));
 }
 
@@ -1072,9 +1058,11 @@ header p {
 .marker-icon {
     font-size: 0.9em; /* Reduced from 1.6em for smaller default footprint */
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    transition: all var(--transition-base);
+    transition: transform 0.15s ease, filter 0.15s ease;
     /* Prevent icon from interfering with click events - click handlers are on parent marker element */
     pointer-events: none;
+    /* Use transform-origin center to keep icon centered when scaling */
+    transform-origin: center center;
 }
 
 .triangle-marker {
@@ -1082,7 +1070,7 @@ header p {
 }
 
 .custom-marker:hover .marker-icon {
-    transform: scale(2.2); /* Increased scale for better expansion on hover */
+    transform: scale(2.2); /* Increased scale for better expansion on hover - no animation */
 }
 
 .marker-info {
@@ -1096,10 +1084,10 @@ header p {
     min-width: 50px; /* Reduced from 70px */
     max-width: 80px; /* Reduced from 110px */
     text-align: center;
-    transition: all var(--transition-base);
+    transition: opacity 0.15s ease, transform 0.15s ease;
     /* Label hidden by default, shown on hover */
     opacity: 0;
-    transform: scale(0.8);
+    transform: scale(0.9);
     /* Prevent info box from interfering with click events - click handlers are on parent marker element */
     pointer-events: none;
 }
