@@ -11,13 +11,46 @@ let CONFIG = {
 // State
 let map;
 let markers = [];
-let alerts = [];
+let cfaAlerts = []; // Primary feed: CFA pager alerts
+let emergencyIncidents = []; // Secondary feed: Emergency Victoria incidents
 let selectedAlertId = null;
+let selectedFeedType = null; // Track which feed the selected alert is from ('cfa' or 'emergency')
 let refreshIntervalId = null;
 let userLocation = null;
 let userMarker = null;
 let autoZoomEnabled = true; // Track if auto-zoom is enabled
 let alertToMarkerMap = new Map(); // Maps alert global index to marker
+
+/**
+ * Get warning level styling based on Australian Warning System official colors
+ * Uses official National Framework hazard colors and design guidelines
+ * @param {string} warningLevel - 'advice', 'watchAndAct', or 'emergency'
+ * @returns {object} Style object with color, label, and icon
+ */
+function getWarningStyle(warningLevel) {
+    const styles = {
+        advice: {
+            color: '#FBE032',  // Official Hazard Yellow (C 3 M 7 Y 91 K 0)
+            textColor: '#000000',  // Black for yellow tier
+            label: 'Advice',
+            icon: '🔥'
+        },
+        watchAndAct: {
+            color: '#FF7900',  // Official Hazard Orange (C 0 M 65 Y 100 K 0)
+            textColor: '#000000',  // Black for orange tier
+            label: 'Watch and Act',
+            icon: '🔥'
+        },
+        emergency: {
+            color: '#D6001C',  // Official Hazard Red (C 9 M 100 Y 100 K 2)
+            textColor: '#FFFFFF',  // White for red tier
+            label: 'Emergency Warning',
+            icon: '🔥'
+        }
+    };
+    
+    return styles[warningLevel] || styles.advice;
+}
 
 // Load configuration from API
 async function loadConfig() {
@@ -116,28 +149,68 @@ async function loadAlerts() {
         // Trigger backend fetch first (non-blocking, happens in background)
         triggerBackendFetch().catch(err => console.warn('Background fetch error:', err));
         
-        // Try to fetch from Azure Function first, fallback to mock data
-        let alertsData;
+        // Fetch CFA alerts (Primary feed)
         try {
             const response = await fetch(CONFIG.apiEndpoint);
-            if (!response.ok) throw new Error('API not available');
-            alertsData = await response.json();
-        } catch (apiError) {
-            console.warn('API not available, using mock data:', apiError);
-            alertsData = getMockAlerts();
+            if (response.ok) {
+                const cfaAlertsData = await response.json();
+                // Process CFA alerts - these don't have warning levels, just pager alerts
+                cfaAlerts = cfaAlertsData.map(alert => ({
+                    ...alert,
+                    source: 'CFA'
+                }));
+                
+                // Sort by timestamp (most recent first)
+                cfaAlerts.sort((a, b) => {
+                    const timeA = new Date(a.timestamp).getTime() || 0;
+                    const timeB = new Date(b.timestamp).getTime() || 0;
+                    return timeB - timeA;
+                });
+                
+                // Limit to 30 most recent CFA alerts
+                cfaAlerts = cfaAlerts.slice(0, 30);
+            }
+        } catch (cfaError) {
+            console.warn('CFA API not available:', cfaError);
+            cfaAlerts = [];
         }
         
-        // Sort alerts by timestamp (most recent first)
-        alertsData.sort((a, b) => {
-            const timeA = new Date(a.timestamp).getTime() || 0;
-            const timeB = new Date(b.timestamp).getTime() || 0;
-            return timeB - timeA;
-        });
+        // Fetch Emergency Victoria incidents (Secondary feed)
+        try {
+            const response = await fetch('/api/getEmergencyFeed');
+            if (response.ok) {
+                const emergencyIncidentsData = await response.json();
+                // Process Emergency incidents - these have warning levels
+                emergencyIncidents = emergencyIncidentsData.map(incident => ({
+                    ...incident,
+                    source: 'Emergency'
+                }));
+                
+                // Sort by timestamp (most recent first)
+                emergencyIncidents.sort((a, b) => {
+                    const timeA = new Date(a.timestamp).getTime() || 0;
+                    const timeB = new Date(b.timestamp).getTime() || 0;
+                    return timeB - timeA;
+                });
+                
+                // Limit to 20 most recent Emergency incidents
+                emergencyIncidents = emergencyIncidents.slice(0, 20);
+            }
+        } catch (emergencyError) {
+            console.warn('Emergency API not available:', emergencyError);
+            emergencyIncidents = [];
+        }
         
-        // Limit to 20 most recent alerts
-        alerts = alertsData.slice(0, 20);
-        displayAlerts(alerts);
-        updateMap(alerts);
+        // If both APIs failed, use mock data
+        if (cfaAlerts.length === 0 && emergencyIncidents.length === 0) {
+            console.warn('Both APIs unavailable, using mock data');
+            const mockData = getMockAlerts();
+            cfaAlerts = mockData;
+            emergencyIncidents = [];
+        }
+        
+        displaySeparateFeeds();
+        updateMapWithSeparateFeeds();
         updateLastUpdate();
         
         // Re-apply auto-zoom if enabled and user location is available
@@ -366,7 +439,7 @@ function toggleAutoZoom() {
         filterAndUpdateAlerts();
     } else if (!autoZoomEnabled) {
         // Show all alerts without filtering
-        displayAlerts(alerts);
+        displaySeparateFeeds();
     }
 }
 
@@ -414,12 +487,12 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 // Filter alerts within 100km and calculate distances
 function filterAndUpdateAlerts() {
-    if (!userLocation || alerts.length === 0) {
+    if (!userLocation || (cfaAlerts.length === 0 && emergencyIncidents.length === 0)) {
         return;
     }
     
-    // Calculate distances for all alerts with coordinates
-    alerts.forEach(alert => {
+    // Calculate distances for CFA alerts
+    cfaAlerts.forEach(alert => {
         if (alert.coordinates) {
             const distance = calculateDistance(
                 userLocation.lat,
@@ -431,32 +504,49 @@ function filterAndUpdateAlerts() {
         }
     });
     
-    // Filter alerts with coordinates and valid distances
-    const alertsWithCoords = alerts.filter(alert => alert.coordinates && alert.distance !== undefined);
+    // Calculate distances for Emergency incidents
+    emergencyIncidents.forEach(incident => {
+        if (incident.coordinates) {
+            const distance = calculateDistance(
+                userLocation.lat,
+                userLocation.lng,
+                incident.coordinates[1],
+                incident.coordinates[0]
+            );
+            incident.distance = distance;
+        }
+    });
     
-    // Sort by distance
-    alertsWithCoords.sort((a, b) => a.distance - b.distance);
+    // Filter alerts with coordinates and valid distances (keep feeds separate)
+    const cfaAlertsFiltered = cfaAlerts.filter(alert => alert.coordinates && alert.distance !== undefined)
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 10); // Top 10 closest CFA alerts
     
-    // Limit to closest 10 alerts
-    const filteredAlerts = alertsWithCoords.slice(0, 10);
+    const emergencyIncidentsFiltered = emergencyIncidents.filter(incident => incident.coordinates && incident.distance !== undefined)
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 10); // Top 10 closest Emergency incidents
     
-    // Update display
-    displayAlerts(filteredAlerts);
+    // Update display with filtered feeds
+    displayCFAAlerts(cfaAlertsFiltered);
+    displayEmergencyIncidents(emergencyIncidentsFiltered);
     
-    // Update map to show only filtered alerts
-    updateMap(filteredAlerts);
+    // Update map bounds to show user location and filtered items
+    const bounds = new mapboxgl.LngLatBounds();
+    bounds.extend([userLocation.lng, userLocation.lat]);
     
-    // Fit map to show user location and all filtered alerts
-    if (filteredAlerts.length > 0) {
-        const bounds = new mapboxgl.LngLatBounds();
-        bounds.extend([userLocation.lng, userLocation.lat]);
-        
-        filteredAlerts.forEach(alert => {
-            if (alert.coordinates) {
-                bounds.extend(alert.coordinates);
-            }
-        });
-        
+    cfaAlertsFiltered.forEach(alert => {
+        if (alert.coordinates) {
+            bounds.extend(alert.coordinates);
+        }
+    });
+    
+    emergencyIncidentsFiltered.forEach(incident => {
+        if (incident.coordinates) {
+            bounds.extend(incident.coordinates);
+        }
+    });
+    
+    if (cfaAlertsFiltered.length > 0 || emergencyIncidentsFiltered.length > 0) {
         map.fitBounds(bounds, { padding: 50, maxZoom: 12 });
     }
 }
@@ -491,9 +581,193 @@ async function getRoute(alertCoordinates) {
     }
 }
 
-// Display route on map
-async function displayRoute(alertIndex) {
-    if (!userLocation || !alerts[alertIndex] || !alerts[alertIndex].coordinates) {
+// Display CFA and Emergency feeds separately
+function displaySeparateFeeds() {
+    displayCFAAlerts(cfaAlerts);
+    displayEmergencyIncidents(emergencyIncidents);
+}
+
+// Display CFA pager alerts with pager icon
+function displayCFAAlerts(alertsToDisplay) {
+    const alertsList = document.getElementById('cfaAlertsList');
+    const alertCount = document.getElementById('cfaAlertCount');
+    
+    alertCount.textContent = alertsToDisplay.length;
+    
+    if (alertsToDisplay.length === 0) {
+        const noAlertsMsg = 'No CFA pager alerts at this time';
+        alertsList.innerHTML = `<div class="no-alerts">${noAlertsMsg}</div>`;
+        return;
+    }
+    
+    alertsList.innerHTML = alertsToDisplay.map((alert, index) => {
+        let distanceHtml = '';
+        if (alert.distance !== undefined) {
+            distanceHtml = `<div class="alert-distance">📍 ${alert.distance.toFixed(1)} km away</div>`;
+        }
+        
+        return `
+            <div class="alert-item cfa-alert" data-alert-id="${index}" data-feed-type="cfa" onclick="selectCFAAlert(${index})">
+                <div class="alert-icon pager-icon">📟</div>
+                <div class="alert-content">
+                    <div class="alert-location">${alert.location || 'Location Unknown'}</div>
+                    <div class="alert-message">${alert.message}</div>
+                    <div class="alert-time">${formatTime(alert.timestamp)}</div>
+                    ${distanceHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Display Emergency Victoria incidents with colored AWS triangles
+function displayEmergencyIncidents(incidentsToDisplay) {
+    const incidentsList = document.getElementById('emergencyIncidentsList');
+    const incidentCount = document.getElementById('emergencyIncidentCount');
+    
+    incidentCount.textContent = incidentsToDisplay.length;
+    
+    if (incidentsToDisplay.length === 0) {
+        const noIncidentsMsg = 'No Emergency incidents at this time';
+        incidentsList.innerHTML = `<div class="no-alerts">${noIncidentsMsg}</div>`;
+        return;
+    }
+    
+    incidentsList.innerHTML = incidentsToDisplay.map((incident, index) => {
+        // Get warning level styling
+        const warningLevel = incident.warningLevel || 'advice';
+        const warningStyle = getWarningStyle(warningLevel);
+        
+        let distanceHtml = '';
+        if (incident.distance !== undefined) {
+            distanceHtml = `<div class="alert-distance">📍 ${incident.distance.toFixed(1)} km away</div>`;
+        }
+        
+        // Add incident name if available
+        let incidentNameHtml = '';
+        if (incident.incidentName) {
+            incidentNameHtml = `<div class="alert-incident-name">${incident.incidentName}</div>`;
+        }
+        
+        // Add source badge
+        const sourceLabel = incident.source === 'NSW' ? 'NSW' : 'VIC';
+        const sourceBadge = `<span class="source-badge source-${sourceLabel.toLowerCase()}">${sourceLabel}</span>`;
+        
+        return `
+            <div class="alert-item emergency-incident" data-alert-id="${index}" data-feed-type="emergency" data-warning-level="${warningLevel}" onclick="selectEmergencyIncident(${index})" style="border-left-color: ${warningStyle.color};">
+                <div class="alert-icon triangle-icon" style="color: ${warningStyle.color};">▲</div>
+                <div class="alert-content">
+                    <div class="alert-warning-badge">${warningStyle.label} ${sourceBadge}</div>
+                    <div class="alert-location" style="color: ${warningStyle.color};">${incident.location || 'Location Unknown'}</div>
+                    ${incidentNameHtml}
+                    <div class="alert-message">${incident.message}</div>
+                    <div class="alert-time">${formatTime(incident.timestamp)}</div>
+                    ${distanceHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Select a CFA alert
+function selectCFAAlert(index) {
+    selectedAlertId = index;
+    selectedFeedType = 'cfa';
+    
+    const alert = cfaAlerts[index];
+    if (!alert) return;
+    
+    // Find the marker
+    const marker = alertToMarkerMap.get(`cfa-${index}`);
+    if (!marker) {
+        console.warn(`No marker found for CFA alert index ${index}`);
+        return;
+    }
+    
+    // Update UI selection
+    document.querySelectorAll('.alert-item').forEach((item) => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`.cfa-alert[data-alert-id="${index}"]`)?.classList.add('selected');
+    
+    // Clear previous marker selection
+    document.querySelectorAll('.custom-marker').forEach(m => {
+        m.classList.remove('marker-selected');
+    });
+    
+    // Add selection to marker
+    const markerEl = marker.getElement();
+    if (markerEl) {
+        markerEl.classList.add('marker-selected');
+    }
+    
+    // Pan to marker and show popup
+    map.flyTo({
+        center: marker.getLngLat(),
+        zoom: 12
+    });
+    
+    if (!marker.getPopup().isOpen()) {
+        marker.togglePopup();
+    }
+    
+    // Show route if user location available
+    if (userLocation && alert.coordinates) {
+        displayRouteForAlert(alert);
+    }
+}
+
+// Select an Emergency incident
+function selectEmergencyIncident(index) {
+    selectedAlertId = index;
+    selectedFeedType = 'emergency';
+    
+    const incident = emergencyIncidents[index];
+    if (!incident) return;
+    
+    // Find the marker
+    const marker = alertToMarkerMap.get(`emergency-${index}`);
+    if (!marker) {
+        console.warn(`No marker found for Emergency incident index ${index}`);
+        return;
+    }
+    
+    // Update UI selection
+    document.querySelectorAll('.alert-item').forEach((item) => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`.emergency-incident[data-alert-id="${index}"]`)?.classList.add('selected');
+    
+    // Clear previous marker selection
+    document.querySelectorAll('.custom-marker').forEach(m => {
+        m.classList.remove('marker-selected');
+    });
+    
+    // Add selection to marker
+    const markerEl = marker.getElement();
+    if (markerEl) {
+        markerEl.classList.add('marker-selected');
+    }
+    
+    // Pan to marker and show popup
+    map.flyTo({
+        center: marker.getLngLat(),
+        zoom: 12
+    });
+    
+    if (!marker.getPopup().isOpen()) {
+        marker.togglePopup();
+    }
+    
+    // Show route if user location available
+    if (userLocation && incident.coordinates) {
+        displayRouteForAlert(incident);
+    }
+}
+
+// Display route for a specific alert (helper function)
+async function displayRouteForAlert(alert) {
+    if (!userLocation || !alert.coordinates) {
         return;
     }
     
@@ -505,7 +779,7 @@ async function displayRoute(alertIndex) {
         map.removeSource('route');
     }
     
-    const route = await getRoute(alerts[alertIndex].coordinates);
+    const route = await getRoute(alert.coordinates);
     
     if (route) {
         // Add route layer
@@ -530,102 +804,54 @@ async function displayRoute(alertIndex) {
                 'line-opacity': 0.6
             }
         });
-        
-        // Update alert with road distance
-        alerts[alertIndex].roadDistance = route.distance;
-        alerts[alertIndex].roadDuration = route.duration;
-        
-        // Update the display to show road distance
-        const alertItem = document.querySelector(`[data-alert-id="${alertIndex}"]`);
-        if (alertItem) {
-            const distanceEl = alertItem.querySelector('.alert-distance');
-            if (distanceEl) {
-                distanceEl.textContent = `📍 ${route.distance} km (${route.duration} min by road)`;
-            }
-        }
     }
 }
 
-// Display alerts in the sidebar
-function displayAlerts(alertsToDisplay) {
-    const alertsList = document.getElementById('alertsList');
-    const alertCount = document.getElementById('alertCount');
-    
-    alertCount.textContent = alertsToDisplay.length;
-    
-    if (alertsToDisplay.length === 0) {
-        const noAlertsMsg = userLocation ? 
-            'No alerts found near you' : 
-            'No active alerts at this time';
-        alertsList.innerHTML = `<div class="no-alerts">${noAlertsMsg}</div>`;
-        return;
-    }
-    
-    alertsList.innerHTML = alertsToDisplay.map((alert) => {
-        // Find the original index in the global alerts array
-        const originalIndex = alerts.indexOf(alert);
-        
-        let distanceHtml = '';
-        if (alert.distance !== undefined) {
-            distanceHtml = `<div class="alert-distance">📍 ${alert.distance.toFixed(1)} km away (straight line)</div>`;
-        }
-        
-        return `
-            <div class="alert-item" data-alert-id="${originalIndex}" onclick="selectAlert(${originalIndex})">
-                <div class="alert-location">${alert.location || 'Location Unknown'}</div>
-                <div class="alert-message">${alert.message}</div>
-                <div class="alert-time">${formatTime(alert.timestamp)}</div>
-                ${distanceHtml}
-            </div>
-        `;
-    }).join('');
-}
-
-// Update map with alert markers
-async function updateMap(alertsToShow) {
+// Update map with separate feeds
+async function updateMapWithSeparateFeeds() {
     // Clear existing markers and mapping
     markers.forEach(marker => marker.remove());
     markers = [];
     alertToMarkerMap.clear();
     
-    // Add new markers - coordinates are now provided by the backend
-    for (let i = 0; i < alertsToShow.length; i++) {
-        const alert = alertsToShow[i];
+    // Add CFA alert markers with pager icon - coordinates are now provided by the backend
+    for (let i = 0; i < cfaAlerts.length; i++) {
+        const alert = cfaAlerts[i];
         
         if (alert.coordinates) {
-            // Find the global index of this alert in the main alerts array
-            const globalIndex = alerts.indexOf(alert);
-            
-            // Create custom marker element
+            // Create custom marker element with pager icon
             const markerEl = document.createElement('div');
-            markerEl.className = 'custom-marker';
+            markerEl.className = 'custom-marker cfa-marker';
             markerEl.setAttribute('role', 'button');
-            markerEl.setAttribute('aria-label', `Fire alert at ${alert.location || 'unknown location'}`);
-            markerEl.setAttribute('data-alert-index', globalIndex);
+            markerEl.setAttribute('aria-label', `CFA alert at ${alert.location || 'unknown location'}`);
+            markerEl.setAttribute('data-alert-index', `cfa-${i}`);
             
-            // Create marker icon
+            // Create marker icon (pager icon)
             const iconDiv = document.createElement('div');
             iconDiv.className = 'marker-icon';
-            iconDiv.textContent = '🔥';
+            iconDiv.textContent = '📟';
             iconDiv.setAttribute('aria-hidden', 'true');
             
             // Create marker info container
             const infoDiv = document.createElement('div');
             infoDiv.className = 'marker-info';
+            infoDiv.style.borderColor = '#2196F3'; // Blue for CFA
             
-            // Create location text (textContent automatically escapes HTML)
+            // Create location text
             const locationDiv = document.createElement('div');
             locationDiv.className = 'marker-location';
+            locationDiv.style.color = '#2196F3';
             locationDiv.textContent = alert.location || 'Unknown';
             
-            // Create time text
+            infoDiv.appendChild(locationDiv);
+            
+            // Create and add time text
             const timeDiv = document.createElement('div');
             timeDiv.className = 'marker-time';
             timeDiv.textContent = formatTime(alert.timestamp);
-            
-            // Assemble the marker
-            infoDiv.appendChild(locationDiv);
             infoDiv.appendChild(timeDiv);
+            
+            // Assemble the marker element
             markerEl.appendChild(iconDiv);
             markerEl.appendChild(infoDiv);
             
@@ -634,7 +860,8 @@ async function updateMap(alertsToShow) {
                 .setPopup(
                     new mapboxgl.Popup({ offset: 25 })
                         .setHTML(`
-                            <div class="popup-location">${alert.location || 'Fire Alert'}</div>
+                            <div class="popup-type">📟 CFA Alert</div>
+                            <div class="popup-location">${alert.location || 'Location Unknown'}</div>
                             <div class="popup-message">${alert.message}</div>
                             <div class="popup-time">${formatTime(alert.timestamp)}</div>
                         `)
@@ -642,10 +869,82 @@ async function updateMap(alertsToShow) {
                 .addTo(map);
             
             markers.push(marker);
+            alertToMarkerMap.set(`cfa-${i}`, marker);
+        }
+    }
+    
+    // Add Emergency incident markers with colored triangles
+    for (let i = 0; i < emergencyIncidents.length; i++) {
+        const incident = emergencyIncidents[i];
+        
+        if (incident.coordinates) {
+            // Determine warning level and get appropriate styling
+            const warningLevel = incident.warningLevel || 'advice';
+            const warningStyle = getWarningStyle(warningLevel);
             
-            // Store global index for selection - map alert's global index to this marker
-            marker.alertIndex = globalIndex;
-            alertToMarkerMap.set(globalIndex, marker);
+            // Create custom marker element with triangle icon
+            const markerEl = document.createElement('div');
+            markerEl.className = 'custom-marker emergency-marker';
+            markerEl.setAttribute('role', 'button');
+            markerEl.setAttribute('aria-label', `Emergency incident at ${incident.location || 'unknown location'}`);
+            markerEl.setAttribute('data-alert-index', `emergency-${i}`);
+            markerEl.setAttribute('data-warning-level', warningLevel);
+            
+            // Create marker icon (triangle icon with warning color)
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'marker-icon triangle-marker';
+            iconDiv.textContent = '▲';
+            iconDiv.style.color = warningStyle.color;
+            iconDiv.setAttribute('aria-hidden', 'true');
+            
+            // Create marker info container
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'marker-info';
+            infoDiv.style.borderColor = warningStyle.color;
+            
+            // Create location text
+            const locationDiv = document.createElement('div');
+            locationDiv.className = 'marker-location';
+            locationDiv.style.color = warningStyle.color;
+            locationDiv.textContent = incident.location || 'Unknown';
+            
+            infoDiv.appendChild(locationDiv);
+            
+            // Add incident name if available
+            if (incident.incidentName) {
+                const incidentNameDiv = document.createElement('div');
+                incidentNameDiv.className = 'marker-incident-name';
+                incidentNameDiv.textContent = incident.incidentName;
+                infoDiv.appendChild(incidentNameDiv);
+            }
+            
+            // Create and add time text
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'marker-time';
+            timeDiv.textContent = formatTime(incident.timestamp);
+            infoDiv.appendChild(timeDiv);
+            
+            // Assemble the marker element
+            markerEl.appendChild(iconDiv);
+            markerEl.appendChild(infoDiv);
+            
+            const marker = new mapboxgl.Marker({ element: markerEl })
+                .setLngLat(incident.coordinates)
+                .setPopup(
+                    new mapboxgl.Popup({ offset: 25 })
+                        .setHTML(`
+                            <div class="popup-warning" style="background-color: ${warningStyle.color}; color: ${warningStyle.textColor};">${warningStyle.label}</div>
+                            <div class="popup-location">${incident.location || 'Location Unknown'}</div>
+                            ${incident.incidentName ? `<div class="popup-incident-name">${incident.incidentName}</div>` : ''}
+                            <div class="popup-message">${incident.message}</div>
+                            <div class="popup-time">${formatTime(incident.timestamp)}</div>
+                            <div class="popup-source">Source: ${incident.source === 'NSW' ? 'NSW RFS' : 'Emergency VIC'}</div>
+                        `)
+                )
+                .addTo(map);
+            
+            markers.push(marker);
+            alertToMarkerMap.set(`emergency-${i}`, marker);
         }
     }
     
@@ -656,57 +955,6 @@ async function updateMap(alertsToShow) {
             bounds.extend(marker.getLngLat());
         });
         map.fitBounds(bounds, { padding: 50, maxZoom: 12 });
-    }
-}
-
-// Select an alert
-function selectAlert(globalAlertIndex) {
-    selectedAlertId = globalAlertIndex;
-    
-    // Find the marker corresponding to this alert using the map
-    const marker = alertToMarkerMap.get(globalAlertIndex);
-    
-    // Early return if marker doesn't exist
-    if (!marker) {
-        console.warn(`No marker found for alert index ${globalAlertIndex}`);
-        return;
-    }
-    
-    // Update UI - find the card with this alert index and select it
-    document.querySelectorAll('.alert-item').forEach((item) => {
-        const itemAlertId = parseInt(item.getAttribute('data-alert-id'));
-        if (itemAlertId === globalAlertIndex) {
-            item.classList.add('selected');
-        } else {
-            item.classList.remove('selected');
-        }
-    });
-    
-    // Clear any previous selection styling
-    document.querySelectorAll('.custom-marker').forEach(m => {
-        m.classList.remove('marker-selected');
-    });
-    
-    // Add selection styling to the marker
-    const markerEl = marker.getElement();
-    if (markerEl) {
-        markerEl.classList.add('marker-selected');
-    }
-    
-    // Pan to marker and show popup
-    map.flyTo({
-        center: marker.getLngLat(),
-        zoom: 12
-    });
-    
-    // Open the popup if not already open
-    if (!marker.getPopup().isOpen()) {
-        marker.togglePopup();
-    }
-    
-    // If user location is available, show route
-    if (userLocation && alerts[globalAlertIndex] && alerts[globalAlertIndex].coordinates) {
-        displayRoute(globalAlertIndex);
     }
 }
 
@@ -727,8 +975,18 @@ function formatTime(timestamp) {
 
 // Show error message
 function showError(message) {
-    const alertsList = document.getElementById('alertsList');
-    alertsList.innerHTML = `<div class="error-message">${message}</div>`;
+    // Show error in both feed sections
+    const cfaAlertsList = document.getElementById('cfaAlertsList');
+    const emergencyIncidentsList = document.getElementById('emergencyIncidentsList');
+    
+    const errorHtml = `<div class="error-message">${message}</div>`;
+    
+    if (cfaAlertsList) {
+        cfaAlertsList.innerHTML = errorHtml;
+    }
+    if (emergencyIncidentsList) {
+        emergencyIncidentsList.innerHTML = errorHtml;
+    }
 }
 
 // Mock data for testing when API is not available

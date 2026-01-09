@@ -296,6 +296,17 @@ MIT License - see LICENSE file for details
 4. Push to the branch
 5. Create a Pull Request
 
+### Pull Request Preview Deployments
+
+Every pull request automatically gets a preview environment deployed by Azure Static Web Apps:
+
+- **Automatic Deployment**: Preview environments are created when you open or update a PR
+- **Preview URL**: Azure posts a comment on your PR with the live preview URL
+- **Real-time Updates**: Push new commits to automatically update the preview
+- **Automatic Cleanup**: Preview environments are deleted when the PR is closed
+
+See [PR_PREVIEWS.md](PR_PREVIEWS.md) for detailed information about preview deployments.
+
 ## Support
 
 For issues or questions, please open an issue on GitHub.
