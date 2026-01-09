@@ -10,10 +10,10 @@ api_location: ""  # ❌ Empty string - API functions not deployed
 ```
 
 This prevented the Azure Functions from being deployed, which meant:
-- `/api/getConfig` endpoint was not available
-- The frontend couldn't fetch the MAPBOX_TOKEN from the environment
-- MapBox initialization failed without a valid token
-- Map failed to render
+- `/api/getCFAFeed` endpoint was not available
+- The application couldn't fetch fire alerts from the CFA feed
+- However, the main issue is that in the main branch, the `/api/getConfig` endpoint is also not being deployed
+- This prevents the frontend from fetching the MAPBOX_TOKEN from the environment
 
 ## Solution
 Updated the workflow file to correctly specify the API location:
@@ -32,35 +32,33 @@ After this PR is merged:
 ### 2. Verify API Functions Are Deployed
 Open your browser to the deployed site and check:
 
-**Test the Config Endpoint:**
+**Test the CFA Feed Endpoint:**
 ```
-https://your-app-url.azurestaticapps.net/api/getConfig
+https://your-app-url.azurestaticapps.net/api/getCFAFeed
 ```
 
-You should see a JSON response like:
-```json
-{
-  "mapboxToken": "pk.your_actual_token_here...",
-  "mapCenter": [144.9631, -37.8136],
-  "mapZoom": 7,
-  "apiEndpoint": "/api/getCFAFeed",
-  "refreshInterval": 60000
-}
-```
+You should see a JSON array with fire alerts (or an empty array if no active alerts).
+
+**Important**: The main branch has a `/api/getConfig` endpoint that this branch doesn't include. After merging this PR into main, both endpoints will be deployed and work together.
 
 ### 3. Check Browser Console
 Open the application and check the browser console (F12):
 
 **Expected Logs:**
 ```
+Auto-refresh enabled: updating every 60 seconds
+```
+
+**If merging into main** (which has getConfig):
+```
 Configuration loaded from API
 Auto-refresh enabled: updating every 60 seconds
 ```
 
-**No Errors About:**
-- "Failed to load configuration"
-- "mapboxgl.accessToken is required"
-- Network errors for `/api/getConfig`
+**Check for Errors:**
+- No "mapboxgl.accessToken is required" errors
+- No 404 errors for API endpoints
+- Map should initialize successfully
 
 ### 4. Verify Map Loads
 The map should:
@@ -71,9 +69,9 @@ The map should:
 
 ### 5. Check Network Tab
 In browser DevTools Network tab, verify:
-- ✅ Request to `/api/getConfig` returns 200 OK
-- ✅ Request to `/api/getCFAFeed` returns 200 OK (or uses mock data)
+- ✅ Request to `/api/getCFAFeed` returns 200 OK (or gracefully falls back to mock data)
 - ✅ Requests to `api.mapbox.com` for map tiles return 200 OK
+- ✅ If merged to main: Request to `/api/getConfig` also returns 200 OK
 
 ## Environment Variables Setup
 
@@ -141,10 +139,11 @@ python3 -m http.server 8080
 api_location: ""  # Empty - no API deployment
 
 # Result:
-# - /api/getConfig not available (404)
-# - Frontend can't get MAPBOX_TOKEN
-# - Map initialization fails
-# - Blank screen where map should be
+# - /api/getCFAFeed not available (404)
+# - /api/getConfig (in main) not available (404)
+# - Frontend can't fetch fire alerts
+# - Frontend can't get MAPBOX_TOKEN (in main)
+# - Map may not load or show errors
 ```
 
 ### After (Fixed)
@@ -152,20 +151,23 @@ api_location: ""  # Empty - no API deployment
 # Workflow file
 api_location: "api"  # Correctly points to /api directory
 
-# Result:
-# - /api/getConfig deployed and available
-# - /api/getCFAFeed deployed and available  
-# - Frontend fetches MAPBOX_TOKEN successfully
-# - Map initializes and renders
+# Result when merged to main:
+# - /api/getCFAFeed deployed and available
+# - /api/getConfig deployed and available (from main)
+# - Frontend fetches fire alerts successfully
+# - Frontend fetches MAPBOX_TOKEN successfully (from main)
+# - Map initializes and renders correctly
 # - Fire alerts display on map
 ```
 
 ## Additional Notes
 
-- The MAPBOX_TOKEN functionality was already implemented in main (PR #3)
-- This PR only adds the critical workflow fix to deploy the API functions
-- No changes to application code needed - it already handles config correctly
-- After merge, the app should work immediately once deployed
+- The MAPBOX_TOKEN environment variable functionality was already implemented in main (PR #3)
+- This PR only adds the critical workflow fix to deploy the API functions from the `/api` directory
+- When merged to main, it will enable deployment of both:
+  - `/api/getCFAFeed` - fetches CFA fire alerts
+  - `/api/getConfig` - serves MAPBOX_TOKEN from environment (already in main)
+- The workflow fix is the key change - without it, API functions aren't deployed regardless of the code
 
 ## Support
 
