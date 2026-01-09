@@ -214,12 +214,18 @@ function extractLocation(message) {
     
     // Pattern 4: Road name without street number
     // Example: "SHELFORD-MT MERCER RD MOUNT MERCER /" or "BENALLA-TOCUMWAL RD MUCKATAH"
+    // Note: Be careful not to match descriptions like "GRASS FIRE ON ... BALLARAT RD"
     const roadMatch = cleanMessage.match(/\b([A-Z][A-Za-z\s-]+?)\s+RD\s+([A-Z][A-Z\s]+?)\s+(?:\/|SV[A-Z]+|M\s+\d)/);
     if (roadMatch) {
         const road = roadMatch[1].trim();
         const suburb = roadMatch[2].trim();
-        const filterPattern = new RegExp(`^(${NON_LOCATION_KEYWORDS.join('|')})\\b`);
-        if (!suburb.match(filterPattern) && suburb.length >= 3) {
+        
+        // Filter out if the "road" part contains non-location keywords (e.g., "FIRE", "GRASS")
+        // This prevents matching descriptions like "GRASS FIRE ON EMPTY BLOCK OF LAND BALLARAT"
+        const roadFilterPattern = new RegExp(`\\b(${NON_LOCATION_KEYWORDS.join('|')})\\b`);
+        const suburbFilterPattern = new RegExp(`^(${NON_LOCATION_KEYWORDS.join('|')})\\b`);
+        
+        if (!road.match(roadFilterPattern) && !suburb.match(suburbFilterPattern) && suburb.length >= 3) {
             return `${road} Rd, ${suburb}`;
         }
     }
@@ -241,6 +247,7 @@ function extractLocation(message) {
     
     // Pattern 6: Extract suburb name before regional codes
     // Example: "GRASS FIRE BULDAR TRAIL RD COMBIENBAR SVSE" -> COMBIENBAR
+    // Example: "BALLARAT RD SUNSHINE NORTH M 26" -> SUNSHINE NORTH
     // This is a fallback for messages that don't match previous patterns
     const suburbOnlyMatch = cleanMessage.match(/\b([A-Z][A-Z\s]{4,30}?)\s+(?:SV[A-Z]+|M\s+\d)/);
     if (suburbOnlyMatch) {
@@ -251,10 +258,24 @@ function extractLocation(message) {
         const words = suburb.split(/\s+/);
         
         // Try to find the last valid location word(s) in the sequence
+        // Check from last word backwards, but keep common multi-word suburb patterns
         for (let i = words.length - 1; i >= 0; i--) {
             const candidate = words.slice(i).join(' ');
-            if (!candidate.match(filterPattern) && candidate.length >= 4 && 
-                !candidate.match(/^[A-Z]$/) && !candidate.match(/^\d/)) {
+            
+            // Skip if candidate starts with a non-location keyword
+            if (candidate.match(filterPattern)) {
+                continue;
+            }
+            
+            // Skip if too short or looks like a grid reference
+            if (candidate.length < 4 || candidate.match(/^[A-Z]$/) || candidate.match(/^\d/)) {
+                continue;
+            }
+            
+            // Check if this looks like a valid location
+            // Multi-word suburbs often have patterns like "SUNSHINE NORTH", "MOUNT MERCER", etc.
+            // Accept if it's multiple words or a single long word
+            if (candidate.includes(' ') || candidate.length >= 6) {
                 return candidate;
             }
         }
