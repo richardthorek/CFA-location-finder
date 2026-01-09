@@ -5,6 +5,88 @@ This document tracks the architecture, design decisions, and development roadmap
 
 ## Recent Changes
 
+### Radical Visual UI Uplift (January 2026)
+
+**Overview:** Complete visual redesign of the CFA Location Finder application to create a modern, fun, and engaging user experience with a firefighter theme.
+
+**Key Features Implemented:**
+1. **Modern Design System**
+   - Firefighter-themed color palette (flame red, ember orange, fire yellow)
+   - Comprehensive CSS variable system for theming
+   - Dark mode support with smooth transitions
+   - Glassmorphism effects throughout
+   - Modern shadows and depth system
+
+2. **Animated Header**
+   - Multi-layer gradient animation (flame colors)
+   - Ember particle sparkle effect
+   - Pulsing title animation
+   - Theme toggle button with glassmorphism
+
+3. **Enhanced Alert Cards**
+   - Modern card designs with gradients
+   - Shine effect animation on hover
+   - Icon bounce animations
+   - Enhanced warning badges with pulse effect for emergencies
+   - Improved visual hierarchy
+
+4. **Interactive Elements**
+   - Button shine effects and lift animations
+   - Icon rotation and bounce on interaction
+   - Smooth transitions throughout (150ms-500ms)
+   - Loading states with spinners
+   - Error shake animations
+
+5. **Map Enhancements**
+   - Rounded corners and enhanced shadows
+   - Dark/light mode map style switching
+   - Animated markers with float effect
+   - Glassmorphism popups
+   - Enhanced user location marker with pulse
+
+6. **Accessibility Improvements**
+   - ARIA labels and roles throughout
+   - Keyboard navigation (Enter/Space, Escape)
+   - Focus-visible styles
+   - Reduced motion support
+   - High contrast mode support
+   - Screen reader optimizations
+
+7. **Responsive Design**
+   - Enhanced breakpoints (1024px, 768px, 480px)
+   - Touch-friendly button sizes
+   - Mobile-optimized layouts
+   - Fluid typography with clamp()
+
+8. **Dark Mode**
+   - One-click toggle in header
+   - Persistent via localStorage
+   - Complete UI adaptation
+   - Automatic map style change
+
+**Files Modified:**
+- `styles.css`: Complete redesign with CSS variables, animations, dark mode
+- `index.html`: Added theme toggle, ARIA attributes, semantic HTML
+- `app.js`: Theme management, enhanced event listeners, accessibility
+- `docs/current_state/images/BASELINE_DESIGN.md`: Documented original design
+- `docs/current_state/images/NEW_DESIGN_OVERVIEW.md`: Comprehensive new design documentation
+
+**Design Principles:**
+- Visual transformation while maintaining usability
+- Firefighter theme without overwhelming
+- Modern patterns (glassmorphism, gradients, microinteractions)
+- Accessibility-first approach
+- Performance-conscious animations
+- Mobile-first responsive design
+
+**Benefits:**
+- Dramatically improved visual appeal
+- Enhanced user engagement through animations
+- Better accessibility for all users
+- Professional firefighter brand identity
+- Dark mode for different viewing conditions
+- Smooth, delightful user experience
+
 ### Card-to-Pin Association Fix (January 2026)
 
 **Issue:** When selecting a card from the list on the right, the map sometimes zoomed to a different pin rather than the one corresponding to the selected card. Additionally, cards in right column stopped loading after filtering was applied.
