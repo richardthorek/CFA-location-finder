@@ -9,20 +9,33 @@ A real-time fire alert map for Victoria, Australia. This application displays Co
 - 🎯 **Smart filtering** - Automatically show incidents within 100km radius
 - 📏 **Distance calculation** - See how far each incident is from your location
 - 🛣️ **Route display** - View driving routes and travel times to selected incidents
-- 🔄 Real-time feed updates from CFA
-- ⏱️ Auto-refresh every 1 minute
-- 📍 Automatic location parsing and geocoding
+- 🔄 Real-time feed updates from CFA (backend fetches every 10 minutes)
+- ⏱️ Auto-refresh every 1 minute (from cached data)
+- 💾 **Efficient caching** - Data is enriched once and shared across all users
+- 📍 Automatic location parsing and geocoding (backend)
 - 📟 Alert details with timestamps
 - 📱 Responsive design for mobile and desktop
+- 🚀 **Reduced API usage** - Geocoding happens once per alert, not per user
 
 ## Architecture
 
 This is a static web application designed to deploy on Azure Static Web Apps with an Azure Function backend:
 
 - **Frontend**: Pure HTML, CSS, and JavaScript (no frameworks)
-- **Backend**: Azure Function to proxy CFA feed and avoid CORS issues
+- **Backend**: Azure Functions with timer-triggered data fetching and storage
+  - `fetchAndStoreCFA`: Timer function (runs every 10 minutes) to fetch, enrich, and store CFA alerts
+  - `getCFAFeed`: HTTP endpoint to retrieve cached alerts from Table Storage
+  - `getConfig`: HTTP endpoint to provide frontend configuration
+- **Storage**: Azure Table Storage for caching enriched alert data
 - **Map**: MapBox GL JS for interactive mapping
-- **Geocoding**: MapBox Geocoding API for location lookups
+- **Geocoding**: MapBox Geocoding API for location lookups (backend only, once per alert)
+
+**Data Flow**:
+1. Timer function fetches CFA feed every 10 minutes
+2. Backend parses alerts and geocodes locations using MapBox API
+3. Enriched data (with coordinates) is stored in Azure Table Storage
+4. Frontend fetches pre-enriched data from Table Storage via API
+5. Multiple users share the same cached data, minimizing external API calls
 
 ## Local Development
 
@@ -85,6 +98,44 @@ This application uses the following environment variables and configuration:
 
 ### Required Variables
 
+#### STORAGE_STRING (Backend Environment Variable)
+
+**Purpose**: Azure Storage connection string for Table Storage. Used to store and cache enriched CFA alert data, reducing API calls and improving performance.
+
+**How to configure**:
+
+**Local Development:**
+1. Create or use an Azure Storage Account (can use the Azurite emulator for local testing)
+2. Get your connection string from Azure Portal → Storage Account → Access Keys
+3. Add to `api/local.settings.json` (this file is gitignored):
+   ```json
+   {
+     "IsEncrypted": false,
+     "Values": {
+       "AzureWebJobsStorage": "",
+       "FUNCTIONS_WORKER_RUNTIME": "node",
+       "MAPBOX_TOKEN": "YOUR_MAPBOX_TOKEN_HERE",
+       "STORAGE_STRING": "YOUR_STORAGE_CONNECTION_STRING"
+     }
+   }
+   ```
+
+**Azure Production:**
+1. In Azure Portal, navigate to your Static Web App
+2. Go to Configuration → Application settings
+3. Add a new setting:
+   - Name: `STORAGE_STRING`
+   - Value: Your Azure Storage connection string
+
+**Security**: The connection string is securely stored as an environment variable and never exposed to the frontend.
+
+**How it works**:
+- A timer function runs every 10 minutes to fetch CFA data
+- Data is enriched with geocoding (using MapBox API) once per alert
+- Enriched data is stored in Azure Table Storage
+- Frontend fetches from storage, not from external APIs
+- Multiple users share the same cached data, reducing API calls
+
 #### MAPBOX_TOKEN (Backend Environment Variable)
 
 **Purpose**: API token for MapBox mapping and geocoding services
@@ -100,7 +151,8 @@ This application uses the following environment variables and configuration:
      "Values": {
        "AzureWebJobsStorage": "",
        "FUNCTIONS_WORKER_RUNTIME": "node",
-       "MAPBOX_TOKEN": "YOUR_MAPBOX_TOKEN_HERE"
+       "MAPBOX_TOKEN": "YOUR_MAPBOX_TOKEN_HERE",
+       "STORAGE_STRING": "YOUR_STORAGE_CONNECTION_STRING"
      }
    }
    ```
@@ -117,6 +169,8 @@ This application uses the following environment variables and configuration:
 **MapBox Free Tier Limits**:
 - 50,000 map loads per month
 - 100,000 geocoding requests per month
+
+**Note**: With the new storage-based architecture, geocoding happens only once per alert in the backend, significantly reducing MapBox API usage.
 
 ### Optional Variables
 
