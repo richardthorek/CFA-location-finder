@@ -11,8 +11,6 @@ module.exports = async function (context, req) {
     // Feed URLs
     const EMERGENCY_VIC_FEED_URL = 'https://data.emergency.vic.gov.au/Show?pageId=getIncidentRSS';
     const NSW_RFS_FEED_URL = 'https://www.rfs.nsw.gov.au/feeds/majorIncidents.xml';
-    // Alternative CFA-specific incidents feed from Emergency VIC (filters for CFA incidents only)
-    const CFA_INCIDENTS_URL = 'https://data.emergency.vic.gov.au/Show?pageId=getIncidentRSS';
 
     try {
         let allIncidents = [];

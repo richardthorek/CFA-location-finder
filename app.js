@@ -1149,12 +1149,16 @@ function getAlertAgeInHours(timestamp) {
 
 /**
  * Calculate opacity based on alert age
- * Alerts fade out gradually after 1 hour
- * - 0-1 hour: Full opacity (1.0)
- * - 1-2 hours: Gradual fade (1.0 -> 0.5)
- * - 2-3 hours: More faded (0.5 -> 0.3)
- * - 3+ hours: Very faded (0.3)
- * Emergency warnings always stay at minimum 0.7 opacity
+ * Alerts fade out gradually after 1 hour to reduce visual clutter while keeping them accessible
+ * 
+ * Fade curve design:
+ * - 0-1 hour: Full opacity (1.0) - Recent alerts are fully visible
+ * - 1-2 hours: Gradual fade (1.0 -> 0.5) - Linear fade at 0.5 per hour
+ * - 2-3 hours: Slower fade (0.5 -> 0.3) - Linear fade at 0.2 per hour
+ * - 3+ hours: Minimum opacity (0.3) - Old alerts remain visible but faded
+ * 
+ * Emergency warnings always stay at minimum 0.7 opacity to ensure visibility
+ * 
  * @param {string} timestamp - ISO timestamp
  * @param {string} warningLevel - 'advice', 'watchAndAct', or 'emergency'
  * @returns {number} Opacity value between 0.3 and 1.0
@@ -1162,20 +1166,33 @@ function getAlertAgeInHours(timestamp) {
 function calculateAlertOpacity(timestamp, warningLevel) {
     const ageHours = getAlertAgeInHours(timestamp);
     
-    // Emergency warnings should remain more visible
-    const minOpacity = (warningLevel === 'emergency') ? 0.7 : 0.3;
+    // Opacity thresholds and fade rates
+    const OPACITY_FULL = 1.0;
+    const OPACITY_MID = 0.5;
+    const OPACITY_MIN = 0.3;
+    const OPACITY_EMERGENCY_MIN = 0.7;
     
-    if (ageHours <= 1) {
+    const FADE_THRESHOLD_1 = 1; // Hours until fade begins
+    const FADE_THRESHOLD_2 = 2; // Hours until slower fade
+    const FADE_THRESHOLD_3 = 3; // Hours until minimum opacity
+    
+    const FADE_RATE_FAST = 0.5; // Opacity lost per hour in fast fade
+    const FADE_RATE_SLOW = 0.2; // Opacity lost per hour in slow fade
+    
+    // Emergency warnings should remain more visible
+    const minOpacity = (warningLevel === 'emergency') ? OPACITY_EMERGENCY_MIN : OPACITY_MIN;
+    
+    if (ageHours <= FADE_THRESHOLD_1) {
         // Recent alerts: full opacity
-        return 1.0;
-    } else if (ageHours <= 2) {
-        // 1-2 hours: gradual fade from 1.0 to 0.5
-        const fadeProgress = (ageHours - 1);
-        return Math.max(minOpacity, 1.0 - (0.5 * fadeProgress));
-    } else if (ageHours <= 3) {
-        // 2-3 hours: fade from 0.5 to 0.3
-        const fadeProgress = (ageHours - 2);
-        return Math.max(minOpacity, 0.5 - (0.2 * fadeProgress));
+        return OPACITY_FULL;
+    } else if (ageHours <= FADE_THRESHOLD_2) {
+        // 1-2 hours: gradual fade
+        const fadeProgress = (ageHours - FADE_THRESHOLD_1);
+        return Math.max(minOpacity, OPACITY_FULL - (FADE_RATE_FAST * fadeProgress));
+    } else if (ageHours <= FADE_THRESHOLD_3) {
+        // 2-3 hours: slower fade
+        const fadeProgress = (ageHours - FADE_THRESHOLD_2);
+        return Math.max(minOpacity, OPACITY_MID - (FADE_RATE_SLOW * fadeProgress));
     } else {
         // 3+ hours: minimum opacity
         return minOpacity;

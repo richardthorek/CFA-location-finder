@@ -1062,7 +1062,8 @@ header p {
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     transition: all var(--transition-base);
     animation: iconFloat 3s ease-in-out infinite;
-    pointer-events: none; /* Prevent icon from interfering with click events */
+    /* Prevent icon from interfering with click events - click handlers are on parent marker element */
+    pointer-events: none;
 }
 
 @keyframes iconFloat {
@@ -1090,7 +1091,8 @@ header p {
     max-width: 110px;
     text-align: center;
     transition: all var(--transition-base);
-    pointer-events: none; /* Prevent info box from interfering with click events */
+    /* Prevent info box from interfering with click events - click handlers are on parent marker element */
+    pointer-events: none;
 }
 
 [data-theme="dark"] .marker-info {
