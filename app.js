@@ -561,21 +561,9 @@ async function updateMap(alerts) {
     markers.forEach(marker => marker.remove());
     markers = [];
     
-    // Add new markers
+    // Add new markers - coordinates are now provided by the backend
     for (let i = 0; i < alerts.length; i++) {
         const alert = alerts[i];
-        
-        if (!alert.coordinates) {
-            // Try to geocode the location
-            const location = parseLocation(alert.message);
-            if (location) {
-                const geocoded = await geocodeLocation(location);
-                if (geocoded) {
-                    alert.coordinates = geocoded.coordinates;
-                    alert.location = location;
-                }
-            }
-        }
         
         if (alert.coordinates) {
             // Create custom marker element
