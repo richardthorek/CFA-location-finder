@@ -43,21 +43,29 @@ npm install
 cd ..
 ```
 
-3. Configure MapBox Token
+3. Configure Environment Variables
 
-Edit `app.js` and replace the MapBox token:
-```javascript
-const CONFIG = {
-    mapboxToken: 'YOUR_MAPBOX_TOKEN_HERE',
-    // ...
-};
+For local development, create a `local.settings.json` file in the `api` directory:
+```bash
+cd api
+cat > local.settings.json << 'EOF'
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "MAPBOX_TOKEN": "YOUR_MAPBOX_TOKEN_HERE"
+  }
+}
+EOF
+cd ..
 ```
 
-Get a free token at: https://account.mapbox.com/
+Get a free MapBox token at: https://account.mapbox.com/access-tokens/
+
+**Note**: `local.settings.json` is gitignored and should never be committed to the repository.
 
 4. Run locally
-
-You can open `index.html` directly in a browser for frontend development. The app includes mock data that will be used when the API is not available.
 
 To test with Azure Functions locally:
 ```bash
@@ -65,7 +73,76 @@ cd api
 npm start
 ```
 
-Then open `index.html` in a browser.
+Then open `index.html` in a browser. The app will fetch the configuration including the MapBox token from the API.
+
+## Environment Variables
+
+This application uses the following environment variables and configuration:
+
+### Required Variables
+
+#### MAPBOX_TOKEN (Backend Environment Variable)
+
+**Purpose**: API token for MapBox mapping and geocoding services
+
+**How to configure**:
+
+**Local Development:**
+1. Get a free token at: https://account.mapbox.com/access-tokens/
+2. Create `api/local.settings.json` (this file is gitignored):
+   ```json
+   {
+     "IsEncrypted": false,
+     "Values": {
+       "AzureWebJobsStorage": "",
+       "FUNCTIONS_WORKER_RUNTIME": "node",
+       "MAPBOX_TOKEN": "YOUR_MAPBOX_TOKEN_HERE"
+     }
+   }
+   ```
+
+**Azure Production:**
+1. In Azure Portal, navigate to your Static Web App
+2. Go to Configuration → Application settings
+3. Add a new setting:
+   - Name: `MAPBOX_TOKEN`
+   - Value: Your MapBox token from https://account.mapbox.com/access-tokens/
+
+**Security**: The token is now securely stored as an environment variable and served through the `/api/getConfig` endpoint. It is never hardcoded in the frontend code.
+
+**MapBox Free Tier Limits**:
+- 50,000 map loads per month
+- 100,000 geocoding requests per month
+
+### Optional Variables
+
+#### CFA_FEED_URL (Azure Function Environment Variable)
+
+**Purpose**: Override the default CFA feed URL if needed
+
+**How to configure**:
+1. In Azure Portal, navigate to your Static Web App
+2. Go to Configuration → Application settings
+3. Add a new setting:
+   - Name: `CFA_FEED_URL`
+   - Value: Your custom CFA feed URL
+
+**Default**: `https://www.mazzanet.net.au/cfa/pager-cfa.php`
+
+**When to use**: Only needed if the default CFA feed URL changes or you want to use a different data source.
+
+### Deployment Variables
+
+#### AZURE_STATIC_WEB_APPS_API_TOKEN (GitHub Actions Secret)
+
+**Purpose**: Authentication token for deploying to Azure Static Web Apps
+
+**How to configure**:
+1. This is automatically created when you set up Azure Static Web Apps with GitHub
+2. Find it in Azure Portal → Your Static Web App → Manage deployment token
+3. It's automatically added to your GitHub repository secrets as `AZURE_STATIC_WEB_APPS_API_TOKEN`
+
+**When to use**: Required for CI/CD deployment via GitHub Actions. Do not modify unless you're recreating the Azure Static Web App.
 
 ## Deployment to Azure
 
@@ -82,16 +159,10 @@ Then open `index.html` in a browser.
 
 ### Configuration
 
-The app uses the following environment configuration:
-
-- **API Endpoint**: Automatically configured as `/api/getCFAFeed` in production
-- **MapBox Token**: Should be configured in `app.js`
-
-### Environment Variables (Optional)
-
-For the Azure Function, you can set environment variables in the Azure Portal:
-
-- `CFA_FEED_URL`: Override the default CFA feed URL if needed
+See the [Environment Variables](#environment-variables) section above for detailed configuration instructions, including:
+- MapBox API token setup (required)
+- Optional CFA feed URL override
+- Azure deployment credentials
 
 ## Usage
 
