@@ -245,6 +245,7 @@ header p {
     top: 3px;
     left: 3px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    z-index: 2;
 }
 
 .user-location-pulse {
@@ -256,15 +257,17 @@ header p {
     top: 0;
     left: 0;
     animation: pulse 2s ease-out infinite;
+    z-index: 1;
+    will-change: transform, opacity;
 }
 
 @keyframes pulse {
     0% {
-        transform: scale(1);
+        transform: scale3d(1, 1, 1);
         opacity: 0.8;
     }
     100% {
-        transform: scale(2.5);
+        transform: scale3d(2.5, 2.5, 1);
         opacity: 0;
     }
 }
