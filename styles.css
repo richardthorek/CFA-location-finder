@@ -261,6 +261,9 @@ header p {
     color: #d32f2f;
     font-size: 0.85em;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
 }
 
 .marker-time {

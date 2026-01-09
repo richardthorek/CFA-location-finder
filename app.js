@@ -665,6 +665,8 @@ function updateLastUpdate() {
 function formatTime(timestamp) {
     if (!timestamp) return 'Unknown time';
     const date = new Date(timestamp);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return 'Unknown time';
     return date.toLocaleString();
 }
 
