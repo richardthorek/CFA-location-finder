@@ -159,14 +159,14 @@ This application uses the following environment variables and configuration:
 
 ### Deployment Variables
 
-#### AZURE_STATIC_WEB_APPS_API_TOKEN (GitHub Actions Secret)
+#### AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_POND_09CBFB91E (GitHub Actions Secret)
 
 **Purpose**: Authentication token for deploying to Azure Static Web Apps
 
 **How to configure**:
 1. This is automatically created when you set up Azure Static Web Apps with GitHub
 2. Find it in Azure Portal → Your Static Web App → Manage deployment token
-3. It's automatically added to your GitHub repository secrets as `AZURE_STATIC_WEB_APPS_API_TOKEN`
+3. It's automatically added to your GitHub repository secrets as `AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_POND_09CBFB91E`
 
 **When to use**: Required for CI/CD deployment via GitHub Actions. Do not modify unless you're recreating the Azure Static Web App.
 

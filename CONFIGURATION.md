@@ -36,7 +36,7 @@ const CONFIG = {
      - Output location: `` (empty)
 
 2. **Configure GitHub Secret**:
-   - The deployment action needs `AZURE_STATIC_WEB_APPS_API_TOKEN`
+   - The deployment action needs `AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_POND_09CBFB91E`
    - This is automatically created when you set up the Static Web App
    - Available in your Azure resource under "Deployment token"
 

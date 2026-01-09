@@ -107,7 +107,7 @@ URL: https://zealous-pond-09cbfb91e-23.centralus.5.azurestaticapps.net
 ### Workflow Secrets
 
 The workflow uses these secrets:
-- `AZURE_STATIC_WEB_APPS_API_TOKEN`: Azure deployment token for the static web app
+- `AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_POND_09CBFB91E`: Azure deployment token for the static web app
 - `GITHUB_TOKEN`: Automatically provided by GitHub Actions for PR comments
 
 ## Troubleshooting
